@@ -23,3 +23,5 @@ logs/
 *.pyc
 __init__.pyc
 *.pyw
+
+tmp_*.py
