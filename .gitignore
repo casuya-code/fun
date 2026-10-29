@@ -18,3 +18,8 @@ Thumbs.db
 *.orig
 logs/
 .openapi.json
+/uploads/
+/downloads/
+*.pyc
+__init__.pyc
+*.pyw
