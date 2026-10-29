@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mechi za Leo (Machaguo) - Bet Slip</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#f0b90b;
+          --good:#2ea043; --bad:#da3633; --border:#30363d; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'Segoe UI',Arial,sans-serif; padding:20px; }
+  h1 { color:var(--accent); font-size:26px; margin-bottom:4px; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:18px; }
+  .note { background:#1b2a35; border:1px solid #2ea04355; border-left:4px solid var(--good);
+          color:#c9e7d1; padding:12px 14px; border-radius:8px; margin-bottom:20px; font-size:14px; line-height:1.5; }
+  .note.warn { background:#2a2316; border-color:#f0b90b55; border-left-color:var(--accent); color:#f5e6c4; }
+  .toolbar { margin-bottom:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  #liveBtn { background:var(--accent); color:#0d1117; border:none; padding:10px 16px; border-radius:8px;
+             font-weight:700; font-size:14px; cursor:pointer; }
+  #liveStatus { color:var(--muted); font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .card .match { font-weight:700; font-size:16px; margin-bottom:4px; }
+  .card .meta { color:var(--muted); font-size:13px; margin-bottom:10px; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; }
+  .badge.live { background:#da36331a; color:#ff7b72; border:1px solid #da363377; }
+  .badge.pending { background:#1b2a35; color:#79c0ff; border:1px solid #1f6feb66; }
+  .badge.win { background:#2ea04333; color:#7ee787; border:1px solid #23863666; }
+  .badge.lose { background:#da36331a; color:#ff7b72; border:1px solid #da363377; }
+  .odds-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-top:1px solid var(--border); font-size:14px; }
+  .score-inputs { display:flex; gap:8px; margin:10px 0; }
+  .score-inputs input { width:100%; background:#0d1117; border:1px solid var(--border); border-radius:8px;
+                       color:var(--text); padding:8px; font-size:14px; }
+  .status-line { font-size:13px; color:var(--muted); margin-top:6px; }
+  .status-line.win { color:#7ee787; }
+  .status-line.lose { color:#ff7b72; }
+  .footer { margin-top:24px; color:var(--muted); font-size:12px; line-height:1.6; }
+</style>
+</head>
+<body>
+<h1>⚽ Mechi za Leo (Machaguo) – Bet Slip</h1>
+<div class="sub">Over 1.5 Goals · Odds: 1.10 – 1.50 · Anza: 29/10/2026</div>
+
+<div class="note">
+  ⚠️ <b>Truth rule:</b> Status is only changed when a verified result exists (goals entered/checked).
+  No status is hardcoded as won. If no true data is available, the status stays pending.
+</div>
+
+<div class="toolbar">
+  <button id="liveBtn">Refresh from Live</button>
+  <span id="liveStatus">Ready.</span>
+</div>
+
+<div class="grid" id="matches"></div>
+
+<div class="footer">
+  <b>Accumulator settlement:</b><br>
+  Combined odds: <span id="totalOdds">1.00</span><br>
+  Payout @ stake 1,000: <span id="payout">1,000</span><br>
+  <br>
+  Over 1.5 wins only if total goals (Home + Away) ≥ 2. Single accumulator: one loss voids the whole slip.
+</div>
+
+<script>
+const matches = [
+  { name:'Coca-Cola vs Al Ahly',         league:'Egyptian Premier League',        date:'29/10/2026', time:'17:00 EAT', odds:1.30, status:'pending' },
+  { name:'Stella vs AFAD',               league:'Ivory Coast Ligue 1',            date:'29/10/2026', time:'18:30 EAT', odds:1.50, status:'pending' },
+  { name:'NPA Anchors vs Borough',      league:'Liberia LFA First Division',     date:'29/10/2026', time:'19:00 EAT', odds:1.26, status:'pending' },
+  { name:'Austria Wien W vs Juventus W',league:'UEFA Women's Champions League', date:'29/10/2026', time:'20:45 EAT', odds:1.22, status:'pending' },
+  { name:'Al Nassr vs Al Kholood',       league:'Saudi Pro League',               date:'29/10/2026', time:'21:00 EAT', odds:1.10, status:'pending' },
+  { name:'Midtjylland vs OB',            league:'Danish Cup',                     date:'29/10/2026', time:'21:30 EAT', odds:1.14, status:'pending' },
+  { name:'Manchester City W vs PSG W',  league:'UEFA Women's Champions League',  date:'29/10/2026', time:'23:00 EAT', odds:1.17, status:'pending' },
+  { name:'Tochigi City vs Iwaki',       league:'J2 League',                     date:'31/10/2026', time:'08:00 EAT', odds:1.14, status:'pending' },
+  { name:'Kochi United vs Sagamihara', league:'J3 League',                      date:'31/10/2026', time:'08:00 EAT', odds:1.30, status:'pending' },
+];
+
+const badgeText = { live:'Moja kwa moja', pending:'Inasubiri', win:'Imechukwa', lose:'Imepotea', void:'Imeahirishwa' };
+const badgeClass = { live:'live', pending:'pending', win:'win', lose:'lose', void:'void' };
+const key = m => m.name.replace(/[^a-zA-Z0-9]/g,'_');
+
+function buildCard(m){
+  const badge = document.createElement('span');
+  badge.className = 'badge ' + badgeClass[m.status];
+  badge.textContent = badgeText[m.status];
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="match">${m.name} ${badge.outerHTML}</div>
+    <div class="meta">${m.league} · ${m.date} · ${m.time}</div>
+    <div class="odds-row"><span>Bet</span><b>Over 1.5 · Odds ${m.odds}</b></div>
+    <div class="odds-row"><span>Status</span><b>${badgeText[m.status]}</b></div>
+    <div class="score-inputs">
+      <input id="g_${key(m)}h" type="number" min="0" max="9" placeholder="Home goals">
+      <input id="g_${key(m)}a" type="number" min="0" max="9" placeholder="Away goals">
+    </div>
+    <div class="status-line" id="status_${key(m)}">Inasubiri – hakuna data ya matokeo</div>
+  `;
+  return card;
+}
+
+function recalc(){
+  let oddsSum = 1;
+  const losing = [];
+  for(const m of matches){
+    oddsSum *= m.odds;
+    const card = document.getElementById('card_'+key(m));
+    const hg = document.getElementById('g_'+key(m)+'h');
+    const ag = document.getElementById('g_'+key(m)+'a');
+    const st  = document.getElementById('status_'+key(m));
+    const badge = card.querySelector('.badge');
+
+    const hgVal = hg.value === '' ? null : parseInt(hg.value);
+    const agVal = ag.value === '' ? null : parseInt(ag.value);
+
+    if(hgVal === null || agVal === null){
+      st.textContent = 'Inasubiri – hakuna data ya matokeo';
+      st.className = 'status-line';
+      badge.className = 'badge pending';
+      badge.textContent = 'Inasubiri';
+      continue;
+    }
+    const total = hgVal + agVal;
+    const win = total >= 2;
+    st.textContent = `Full-time: ${hgVal}-${agVal} · Magoli Zote: ${total} · Over 1.5: ${win ? 'WIN' : 'LOSE'}`;
+    st.className = 'status-line ' + (win ? 'win' : 'lose');
+    badge.className = 'badge ' + (win ? 'win' : 'lose');
+    badge.textContent = win ? 'Imechukwa' : 'Imepotea';
+    if(!win) losing.push(m.name);
+  }
+  document.getElementById('totalOdds').textContent = oddsSum.toFixed(4);
+  document.getElementById('payout').textContent = (oddsSum*1000).toFixed(2);
+  const footerRes = document.getElementById('resultLines');
+  if(losing.length) footerRes.textContent = `Slip imepotea – legi ${losing.length} imepotea. Odibanishaji: ${losing.join(', ')}`;
+  else footerRes.textContent = `Kila legi iliwa Over 1.5 ✓. Odds kamili: ${oddsSum.toFixed(4)}`;
+}
+
+async function refreshFromLive(){
+  const btn = document.getElementById('liveBtn');
+  const st = document.getElementById('liveStatus');
+  btn.disabled = true;
+  st.textContent = 'Refreshing from live source...';
+  try{
+    const r = await fetch('https://prod-cdn-public-api.livescore.com/v1/api/app/date/soccer/20261029/0?locale=en');
+    const d = await r.json();
+    let foundAny = false;
+    for(const s of (d.Stages||[])){
+      for(const e of (s.Events||[])){
+        if(e.Eps !== 'FT') continue;
+        const t1 = (e.T1[0]||{}).Nm || '';
+        const t2 = (e.T2[0]||{}).Nm || '';
+        const hg = e.Tr1, ag = e.Tr2;
+        if(hg == null || ag == null) continue;
+        const m = matches.find(mm => (mm.name.toLowerCase().includes(t2.toLowerCase()) || mm.name.toLowerCase().includes(t1.toLowerCase())) && mm.name !== 'placeholder');
+        if(!m) continue;
+        const card = document.getElementById('card_'+key(m));
+        document.getElementById('g_'+key(m)+'h').value = hg;
+        document.getElementById('g_'+key(m)+'a').value = ag;
+        foundAny = true;
+      }
+    }
+    if(typeof recalc === 'function') recalc();
+    st.textContent = foundAny ? 'Live data updated from verified FT scores.' : 'No FT results found for tracked matches today.';
+  }catch(err){
+    st.textContent = 'Live source unavailable – statuses unchanged (strict rule kept).';
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+function init(){
+  const box = document.getElementById('matches');
+  for(const m of matches){
+    const card = buildCard(m);
+    card.id = 'card_'+key(m);
+    box.appendChild(card);
+  }
+  const footerRes = document.createElement('div');
+  footerRes.id = 'resultLines';
+  footerRes.className = 'status-line';
+  footerRes.textContent = `Legi zilizokwenda: 0/${matches.length} · Odibanishaji: hakuna data bado`;
+  document.querySelector('.footer').appendChild(footerRes);
+
+  const boxEl = document.getElementById('matches');
+  boxEl.addEventListener('input', recalc);
+  boxEl.addEventListener('change', recalc);
+
+  document.getElementById('liveBtn').addEventListener('click', refreshFromLive);
+}
+init();
+</script>
+</body>
+</html>
