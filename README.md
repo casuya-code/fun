@@ -1,0 +1,1 @@
+﻿# BetPicks - Git Best Practices
