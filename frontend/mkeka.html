@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mkeka - BetPicks</title>
+<link rel="stylesheet" href="/css/style.css?v=8">
+</head>
+<body>
+
+<div class="container page">
+  <div id="header">
+    <h1>BetPicks</h1>
+    <p class="muted" id="hello"></p>
+  </div>
+  <section id="sec-mypicks">
+    <h2>Machaguo yangu</h2>
+    <div class="card">
+      <div class="muted">Chagua hadi mechi 5, zenye jumla ya Odds 1.5 - 6.0.</div>
+      <div id="mypicks-available"></div>
+      <div style="margin-top:8px">
+        <button class="btn" id="mypicks-save" data-action="submitMyPick">Hifadhi chaguo</button>
+      </div>
+      <div id="mypicks-msg" class="muted"></div>
+    </div>
+    <h2>Historia (siku 60)</h2>
+    <div id="mypicks-history"></div>
+  </section>
+</div>
+<nav class="bottom-nav">
+  <button data-tab="picks"><span class="icon">🎯</span>Mechi</button>
+  <button data-tab="mypicks" class="active"><span class="icon">📝</span>Mkeka</button>
+  <button data-tab="experts"><span class="icon">🏆</span>Wataalamu</button>
+  <button data-tab="me"><span class="icon">👤</span>Mimi</button>
+  <button data-tab="adm" class="admin-only"><span class="icon">⚙️</span>ADM</button>
+</nav>
+<script src="/js/api.js?v=3"></script>
+<script src="/js/app.js?v=22"></script>
+</body>
+</html>

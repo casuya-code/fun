@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADM - BetPicks</title>
+<link rel="stylesheet" href="/css/style.css?v=8">
+</head>
+<body>
+<div class="container page">
+  <div id="header">
+    <h1>BetPicks</h1>
+    <p class="muted" id="hello"></p>
+  </div>
+
+  <div class="card" style="background:#fff8e1;border:1px solid #f9c74f;">
+    <b>Sehemu ya siri (ADM)</b>
+    <div class="muted">Hii ni jaribio lako binafsi. Watumiaji wa kawaida hawawezi kuiona.</div>
+    <div class="muted" id="adm-note"></div>
+  </div>
+
+  <h2>Takwimu za jaribio</h2>
+  <div class="card">
+    <div class="stat-grid">
+      <div class="stat"><div class="num" id="st-slips">-</div><div class="lbl">Mikeka</div></div>
+      <div class="stat"><div class="num" id="st-rate">-</div><div class="lbl">Kiwango cha kushinda %</div></div>
+      <div class="stat"><div class="num" id="st-roi">-</div><div class="lbl">ROI %</div></div>
+      <div class="stat"><div class="num" id="st-odds">-</div><div class="lbl">Odds ya wastani</div></div>
+      <div class="stat"><div class="num" id="st-won">-</div><div class="lbl">Zilizoshinda</div></div>
+      <div class="stat"><div class="num" id="st-pending">-</div><div class="lbl">Zinasubiri</div></div>
+    </div>
+    <div class="muted" id="adm-filter-stats" style="margin-top:10px"></div>
+  </div>
+
+  <h2>Step 1 — Machaguo (Over 1.5)</h2>
+  <div class="card">
+    <div class="muted">Mechi zenye Over 1.5 juu ya 78%. Sasa: <b id="cand-count">-</b></div>
+    <div style="margin-top:8px" class="row">
+      <button class="btn secondary" data-action="syncEngine">Sasisha data</button>
+      <button class="btn" data-action="generateSlip">Tengeneza mkeka 10+</button>
+    </div>
+    <div style="margin-top:8px" class="row">
+      <button class="btn secondary" data-action="settleNow">Sasisha matokeo kiotomatiki (AI)</button>
+      <button class="btn" data-action="archiveSettled">Hifadhi</button>
+    </div>
+    <div id="adm-msg" class="muted"></div>
+  </div>
+  <div id="adm-candidates"></div>
+  <div id="adm-compose"></div>
+
+  <h2>Step 4 — Mikeka ya majaribio</h2>
+  <div class="muted" id="adm-kelly-note">Kiwango cha Kelly: ¼ ya thamani kamili.</div>
+  <div id="adm-slips"></div>
+</div>
+
+<nav class="bottom-nav">
+  <button data-tab="picks"><span class="icon">🎯</span>Mechi</button>
+  <button data-tab="mypicks"><span class="icon">📝</span>Mkeka</button>
+  <button data-tab="experts"><span class="icon">🏆</span>Wataalamu</button>
+  <button data-tab="me"><span class="icon">👤</span>Mimi</button>
+  <button data-tab="adm" class="active"><span class="icon">⚙️</span>ADM</button>
+</nav>
+
+<script src="/js/api.js?v=3"></script>
+<script src="/js/app.js?v=22"></script>
+<script src="/js/adm.js?v=7"></script>
+</body>
+</html>

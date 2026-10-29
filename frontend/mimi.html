@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mimi - BetPicks</title>
+<link rel="stylesheet" href="/css/style.css?v=8">
+</head>
+<body>
+
+<div class="container page">
+  <div id="header">
+    <h1>BetPicks</h1>
+    <p class="muted" id="hello"></p>
+  </div>
+  <section id="sec-me">
+    <h2>Mimi</h2>
+    <div class="card" id="profile"></div>
+    <h2>Machaguo ya wafuatwao (leo)</h2>
+    <div id="followed-odds"></div>
+    <div style="margin-top:12px">
+      <button class="btn secondary" data-action="logout">Ondoka</button>
+    </div>
+  </section>
+</div>
+<nav class="bottom-nav">
+  <button data-tab="picks"><span class="icon">🎯</span>Mechi</button>
+  <button data-tab="mypicks"><span class="icon">📝</span>Mkeka</button>
+  <button data-tab="experts"><span class="icon">🏆</span>Wataalamu</button>
+  <button data-tab="me" class="active"><span class="icon">👤</span>Mimi</button>
+  <button data-tab="adm" class="admin-only"><span class="icon">⚙️</span>ADM</button>
+</nav>
+<script src="/js/api.js?v=3"></script>
+<script src="/js/app.js?v=22"></script>
+</body>
+</html>

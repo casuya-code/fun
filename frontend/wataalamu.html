@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wataalamu - BetPicks</title>
+<link rel="stylesheet" href="/css/style.css?v=8">
+</head>
+<body>
+
+<div class="container page">
+  <div id="header">
+    <h1>BetPicks</h1>
+    <p class="muted" id="hello"></p>
+  </div>
+  <section id="sec-experts">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <h2 style="margin:0">Wataalamu</h2>
+      <input id="expert-search" class="input" style="max-width:320px;margin:0;flex:1 1 220px" placeholder="Tafuta jina la mtaalamu...">
+    </div>
+    <div class="muted" id="expert-count" style="margin:6px 0 12px"></div>
+    <div id="experts-list" class="experts-grid"></div>
+  </section>
+</div>
+<nav class="bottom-nav">
+  <button data-tab="picks"><span class="icon">🎯</span>Mechi</button>
+  <button data-tab="mypicks"><span class="icon">📝</span>Mkeka</button>
+  <button data-tab="experts" class="active"><span class="icon">🏆</span>Wataalamu</button>
+  <button data-tab="me"><span class="icon">👤</span>Mimi</button>
+  <button data-tab="adm" class="admin-only"><span class="icon">⚙️</span>ADM</button>
+</nav>
+<script src="/js/api.js?v=3"></script>
+<script src="/js/app.js?v=22"></script>
+</body>
+</html>
