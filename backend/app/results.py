@@ -156,6 +156,11 @@ def refresh_kickoffs(db, matches, pause: float = 0.3):
                 ko = fetch_kickoff_api(m.home_team, m.away_team, m.match_date)
             except Exception:
                 ko = None
+        # A kickoff further than 3 days from the fixture date comes from the
+        # wrong page (e.g. an H2H page showing the NEXT meeting) — reject it,
+        # otherwise settlement treats the match as "not started yet" forever.
+        if ko and m.match_date and abs((ko.date() - m.match_date.date()).days) > 3:
+            ko = None
         if ko:
             m.kickoff_at = ko
             updated += 1

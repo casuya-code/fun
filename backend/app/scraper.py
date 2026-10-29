@@ -8,10 +8,14 @@ from .config import settings
 
 URL = "https://footystats.org/stats/over15-goals"
 
+# NOTE: footystats/Cloudflare rejects full Chrome headers (TLS/header mismatch
+# triggers the "Just a moment" challenge). This bare UA is the one that works.
+BARE_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+
 def fetch_matches_footstats_ai():
     """AI scrape fallback for FootStats only (no external API data)."""
     headers_list = [
-        {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
+        BARE_UA,
         {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"},
     ]
     for headers in headers_list:
@@ -129,7 +133,7 @@ def fetch_matches_api():
         return []
 
 def fetch_matches():
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+    headers = dict(BARE_UA)
     resp = None
     for verify in [True, False]:
         try:

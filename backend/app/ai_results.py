@@ -177,15 +177,32 @@ def fetch_via_api_football(home_team: str, away_team: str, match_date=None) -> O
                 print(f"API-Football parse error: {e}")
     return None
 
-def ai_fetch_score(home_team: str, away_team: str, match_date=None) -> Optional[AIResult]:
-    """Main settlement function - tries API-Football first, then web scraping."""
+def ai_fetch_score(home_team: str, away_team: str, match_date=None,
+                   alt_home: str = None, alt_away: str = None) -> Optional[AIResult]:
+    """Main settlement function - tries API-Football first, then web scraping.
+
+    alt_home/alt_away: alternate names for the same fixture (e.g. a slug
+    derived from the footystats URL like "dac 1904 dunajska streda" vs the DB
+    short name "DAC") - used only when the primary names find no fixture.
+    """
+    def _try(h, a):
+        try:
+            r = fetch_via_api_football(h, a, match_date)
+            if r and r.finished and r.confidence >= 0.9:
+                return r
+        except Exception as e:
+            print(f"API-Football fetch error: {e}")
+        return None
+
     # 1) API-Football (reliable)
-    try:
-        result = fetch_via_api_football(home_team, away_team, match_date)
-        if result and result.finished and result.confidence >= 0.9:
+    result = _try(home_team, away_team)
+    if result:
+        return result
+    # 1b) API-Football with alternate names
+    if alt_home and alt_away:
+        result = _try(alt_home, alt_away)
+        if result:
             return result
-    except Exception as e:
-        print(f"API-Football fetch error: {e}")
     # 2) web scraping fallback
     result = fetch_via_web_scrape(home_team, away_team, match_date)
     if result and result.finished and result.confidence >= 0.7:

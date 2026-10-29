@@ -130,6 +130,34 @@ def _serialize_slip(slip: EngineSlip) -> dict:
 
 # ---------- automatic settlement ----------
 
+def _slug_names(url: str):
+    """Derive team names from a footystats h2h URL slug.
+
+    '/slovakia/dac-1904-dunajska-streda-vs-fk-kosice-h2h-stats'
+      -> ('dac 1904 dunajska streda', 'fk kosice')
+    """
+    try:
+        import re as _re
+        seg = (url or "").rstrip("/").split("/")[-1]
+        seg = _re.sub(r"-h2h-stats$", "", seg)
+        if "-vs-" in seg:
+            h, a = seg.split("-vs-", 1)
+            return h.replace("-", " ").strip(), a.replace("-", " ").strip()
+    except Exception:
+        pass
+    return None, None
+
+
+def _same_team(a, b) -> bool:
+    """True when two name strings plausibly refer to the same team."""
+    try:
+        from ..ai_results import _norm
+        na, nb = _norm(a), _norm(b)
+        return bool(na) and bool(nb) and (na in nb or nb in na)
+    except Exception:
+        return False
+
+
 def settle_pending(db, pause: float = 1.0, max_requests: int = 50) -> dict:
     """Look up final scores for every unsettled leg and settle what we can using AI + scraping."""
     import time as _time
@@ -150,6 +178,11 @@ def settle_pending(db, pause: float = 1.0, max_requests: int = 50) -> dict:
         m = l.match
         # fall back to the scheduled date when no real kickoff was found yet
         starts = m.kickoff_at or m.match_date
+        # a kickoff that is nowhere near the fixture date is bogus data
+        # (e.g. an H2H page listing the NEXT meeting) - ignore it, or the
+        # match would be treated as "not started yet" forever.
+        if m.kickoff_at and m.match_date and abs((m.kickoff_at - m.match_date).days) > 3:
+            starts = m.match_date
         if starts and starts > now:
             continue  # not started yet
         if m.last_checked_at and (now - m.last_checked_at) < timedelta(minutes=RECHECK_MINUTES):
@@ -168,27 +201,39 @@ def settle_pending(db, pause: float = 1.0, max_requests: int = 50) -> dict:
         hg = ag = None
         status = None
         ko = None
-        
-        # Try footystats first if URL exists
-        if m.match_url:
+
+        # 1) API-Football first: authoritative final scores (FT), never the
+        #    scraped H2H page which can show a historical score.
+        try:
+            alt_h, alt_a = _slug_names(m.match_url) if m.match_url else (None, None)
+            if alt_h and alt_a and _same_team(alt_h, m.away_team):
+                alt_h, alt_a = alt_a, alt_h  # align alias order with the DB
+            ai_res = ai_fetch_score(m.home_team, m.away_team, m.match_date,
+                                    alt_home=alt_h, alt_away=alt_a)
+            if ai_res and ai_res.finished and ai_res.home_score is not None and ai_res.away_score is not None:
+                hg, ag = ai_res.home_score, ai_res.away_score
+                status = "finished"
+                print(f"AI settled {m.home_team} vs {m.away_team}: {hg}-{ag} via {ai_res.source}")
+        except Exception as e:
+            print(f"AI settlement error for {m.home_team} vs {m.away_team}: {e}")
+
+        # 2) footystats page fallback - only trusted when the page's own
+        #    kickoff matches this fixture date (guards against H2H history
+        #    scores like "5-2" belonging to a different meeting).
+        if (status != "finished" or hg is None or ag is None) and m.match_url:
             try:
-                status, hg, ag, ko = fetch_match_page(m.match_url)
+                p_status, p_hg, p_ag, p_ko = fetch_match_page(m.match_url)
+                if p_status == "finished" and p_hg is not None and p_ag is not None:
+                    if p_ko is None or abs((p_ko.date() - m.match_date.date()).days) <= 3:
+                        hg, ag, status = p_hg, p_ag, "finished"
+                        ko = p_ko
+                    else:
+                        print(f"page score rejected for {m.home_team} vs {m.away_team}: "
+                              f"page kickoff {p_ko.date()} vs fixture {m.match_date.date()}")
             except Exception as e:
                 if "429" in str(e) or "timed out" in str(e).lower():
                     limited = True
-                # continue to AI fallback
-        
-        # If not found via footystats, use AI scraping
-        if status != "finished" or hg is None or ag is None:
-            try:
-                ai_res = ai_fetch_score(m.home_team, m.away_team, m.match_date)
-                if ai_res and ai_res.finished and ai_res.home_score is not None and ai_res.away_score is not None:
-                    hg, ag = ai_res.home_score, ai_res.away_score
-                    status = "finished"
-                    print(f"AI settled {m.home_team} vs {m.away_team}: {hg}-{ag} via {ai_res.source}")
-            except Exception as e:
-                print(f"AI settlement error for {m.home_team} vs {m.away_team}: {e}")
-        
+
         if ko and not m.kickoff_at:
             m.kickoff_at = ko
         if status == "finished" and hg is not None and ag is not None:
