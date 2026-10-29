@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hali ya Mfumo - Betva</title>
+<link rel="stylesheet" href="/css/style.css?v=8">
+<style>
+  .status-banner { border-radius:12px; padding:16px 18px; font-weight:700; font-size:16px; display:flex; align-items:center; gap:12px; margin-bottom:14px; border:1px solid transparent; }
+  .status-banner.up   { background:#e6f4ea; color:#137333; border-color:#b7e1c4; }
+  .status-banner.warn { background:#fef7e0; color:#b06000; border-color:#f9e3a7; }
+  .status-banner.down { background:#fce8e6; color:#c5221f; border-color:#f5c6c2; }
+  .status-banner .big { font-size:22px; }
+
+  .status-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:12px; margin-top:12px; }
+  .status-card { background:#fff; border:1px solid #e5e7eb; border-left:6px solid #cbd5e1; border-radius:12px; padding:14px; transition:.2s; }
+  .status-card.up   { border-left-color:#2ea043; }
+  .status-card.warn { border-left-color:#f9c74f; }
+  .status-card.down { border-left-color:#e63946; }
+  .status-card .row1 { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
+  .status-card .name { font-weight:700; font-size:14px; color:#202124; }
+  .status-card .desc { font-size:12px; color:#5f6368; font-family:monospace; word-break:break-all; }
+  .status-card .row2 { display:flex; justify-content:space-between; align-items:center; margin-top:10px; }
+
+  .dot { width:11px; height:11px; border-radius:50%; display:inline-block; flex:none; }
+  .dot.up   { background:#2ea043; box-shadow:0 0 0 4px rgba(46,160,67,.16); }
+  .dot.warn { background:#f9c74f; box-shadow:0 0 0 4px rgba(249,199,79,.20); }
+  .dot.down { background:#e63946; box-shadow:0 0 0 4px rgba(230,57,70,.16); animation:blink 1s infinite; }
+  @keyframes blink { 50% { opacity:.45; } }
+
+  .badge-status { padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; }
+  .badge-status.up   { background:#e6f4ea; color:#137333; }
+  .badge-status.warn { background:#fef7e0; color:#b06000; }
+  .badge-status.down { background:#fce8e6; color:#c5221f; }
+
+  .ms { font-size:12px; font-family:monospace; font-weight:700; }
+  .ms.fast { color:#137333; }
+  .ms.mid  { color:#b06000; }
+  .ms.slow { color:#c5221f; }
+
+  .http-code { font-size:11px; color:#5f6368; font-family:monospace; }
+
+  .mini-stats { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .mini { flex:1 1 140px; background:#f8f9fa; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; text-align:center; }
+  .mini .num { font-size:22px; font-weight:800; color:#1a73e8; }
+  .mini .lbl { font-size:11px; color:#5f6368; }
+
+  .checked-row { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-top:6px; }
+</style>
+</head>
+<body>
+<div class="container page">
+
+  <div class="card" style="background:linear-gradient(135deg,#0f9d58 0%,#1a73e8 100%);color:#fff;border:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div>
+        <h1 style="margin:0;color:#fff">🟩 Hali ya Mfumo (Status)</h1>
+        <div style="opacity:.9;font-size:13px;margin-top:4px">Vitestuhalisi vya kweli kutoka kwa API — hakuna hali iliyowekwa wima</div>
+      </div>
+      <a href="/mechi.html" style="color:#fff;background:rgba(255,255,255,.2);padding:8px 14px;border-radius:8px">← Rudi</a>
+    </div>
+  </div>
+
+  <div id="overall" class="status-banner warn">
+    <span class="big">⏳</span>
+    <span id="overallText">Inakagua huduma...</span>
+  </div>
+
+  <div class="card">
+    <div class="checked-row">
+      <h2 style="margin:0">Huduma Zinazojaribiwa</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" id="refreshBtn">⚡ Sasisha</button>
+      </div>
+    </div>
+    <div class="muted" id="checkedAt" style="margin-top:6px">Bado haijakaguliwa...</div>
+    <div class="muted" style="font-size:12px">Kila kadi inapima hali halisi (HTTP) na muda wa majibu (ms).</div>
+    <div class="status-grid" id="statusGrid"></div>
+
+    <div class="mini-stats" id="miniStats"></div>
+  </div>
+
+  <div class="muted" style="font-size:12px;margin-top:12px">
+    🔵 kijani = inafanya kazi · 🟡 njano = inafanya kasi polepole / inahitaji uthibitisho · 🔴 nyekundu = hitilafu
+    · Hali husasishwa kila sekunde 30.
+  </div>
+
+</div>
+<script src="/js/status.js?v=1"></script>
+</body>
+</html>
