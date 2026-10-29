@@ -1,4 +1,4 @@
-﻿# Contributing to BetPicks
+﻿# Contributing to Betva
 
 ## Development Setup
 1. Clone the repository

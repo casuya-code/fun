@@ -1,8 +1,8 @@
-# BetPicks
+# Betva
 
 ## Description
 
-BetPicks is a betting picks web application built with FastAPI, PostgreSQL, and vanilla JavaScript. The application allows users to view daily matches, create accumulators (ACCAs), follow experts, and track their betting statistics.
+Betva is a betting picks web application built with FastAPI, PostgreSQL, and vanilla JavaScript. The application allows users to view daily matches, create accumulators (ACCAs), follow experts, and track their betting statistics.
 
 ### Features
 
