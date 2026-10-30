@@ -292,7 +292,7 @@ def history(db: Session = Depends(get_db), admin=Depends(admin_user)):
 def refresh_kickoffs_endpoint(db: Session = Depends(get_db), admin=Depends(admin_user)):
     """Manually refresh kickoff times for all matches using API-Football."""
     try:
-        from .scraper import _fetch_kickoff_for_match
+        from ..scraper import _fetch_kickoff_for_match
         from ..models import EngineMatch, Prediction
         from datetime import datetime, timedelta, time
         from ..config import settings
