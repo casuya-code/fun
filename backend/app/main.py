@@ -163,6 +163,19 @@ def startup():
 def favicon():
     return Response(status_code=204)
 
+@app.get("/health")
+def health():
+    """Liveness probe: 200 when the API and database are reachable."""
+    from sqlalchemy import text as _text
+    try:
+        with engine.connect() as c:
+            c.execute(_text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+    body = '{"status":"ok","db":true}' if db_ok else '{"status":"degraded","db":false}'
+    return Response(content=body, status_code=200 if db_ok else 503, media_type="application/json")
+
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
 if os.path.isdir(frontend_dir):
     app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
