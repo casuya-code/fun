@@ -361,6 +361,16 @@ def candidates(min_over: float = float(OVER15_THRESHOLD), db: Session = Depends(
     from datetime import datetime
     today = datetime.now().date()
     rows = db.query(EngineMatch).order_by(EngineMatch.match_date, EngineMatch.odds).all()
+    # Deduplicate by (home, away): keep the row with the latest kickoff_at
+    seen = set()
+    deduped = []
+    for m in sorted(rows, key=lambda x: (x.kickoff_at or x.match_date), reverse=True):
+        key = (m.home_team.strip().lower(), m.away_team.strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(m)
+    rows = deduped
     out = []
     for m in rows:
         kd = m.kickoff_at or m.match_date
