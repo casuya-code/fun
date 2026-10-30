@@ -298,6 +298,25 @@ def refresh_kickoffs_endpoint(db: Session = Depends(get_db), admin=Depends(admin
         from ..config import settings
 
         has_key = bool(settings.football_api_key)
+        # First, clean up duplicate EngineMatch rows (same home, away, day)
+        from sqlalchemy import func
+        dupes = db.query(
+            EngineMatch.home_team, EngineMatch.away_team,
+            func.date(EngineMatch.match_date).label("d")
+        ).group_by(
+            EngineMatch.home_team, EngineMatch.away_team, func.date(EngineMatch.match_date)
+        ).having(func.count() > 1).all()
+        for home, away, d in dupes:
+            rows = db.query(EngineMatch).filter(
+                EngineMatch.home_team == home,
+                EngineMatch.away_team == away,
+                EngineMatch.match_date >= datetime.combine(d, time(0, 0)),
+                EngineMatch.match_date < datetime.combine(d, time(0, 0)) + timedelta(days=1),
+            ).order_by(EngineMatch.kickoff_at.desc().nullslast(), EngineMatch.id).all()
+            for row in rows[1:]:
+                db.delete(row)
+        db.commit()
+
         engine_matches = db.query(EngineMatch).filter(EngineMatch.kickoff_at.is_(None)).all()
         updated = 0
         errors = []
