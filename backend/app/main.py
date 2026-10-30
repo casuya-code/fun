@@ -105,6 +105,8 @@ def startup():
             _c.execute(text("CREATE INDEX IF NOT EXISTS ix_engine_matches_kickoff ON engine_matches(kickoff_at)"))
             _c.execute(text("ALTER TABLE engine_matches ADD COLUMN IF NOT EXISTS used BOOLEAN DEFAULT FALSE"))
             _c.execute(text("ALTER TABLE visits ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
+            _c.execute(text("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS home_goals INTEGER"))
+            _c.execute(text("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS away_goals INTEGER"))
             _c.execute(text("CREATE INDEX IF NOT EXISTS ix_visits_user_id ON visits(user_id)"))
             _c.commit()
     except Exception as e:

@@ -17,6 +17,7 @@ function pickStatusSw(s){
   if(s==="pending") return "Inasubiri";
   if(s==="won") return "Imeshinda";
   if(s==="lost") return "Imepotea";
+  if(s==="void") return "Imerudishiwa";
   return s;
 }
 function outcomeSw(o){
@@ -183,7 +184,11 @@ async function loadMyPicks(){
     const accaStatus = pickStatusSw(p.status);
     const legDetails = p.legs.map((l,idx)=>{
       const sStatus = statusSw(l.status);
-      const sOutcome = l.outcome === "win" ? "✔ Imeshinda" : l.outcome === "lose" ? "✘ Imepotea" : sStatus;
+      const scoreTxt = l.score ? ` (${l.score})` : "";
+      const sOutcome = l.outcome === "win" ? "✔ Imeshinda" + scoreTxt
+        : l.outcome === "lose" ? "✘ Imepotea" + scoreTxt
+        : l.outcome === "void" ? "⏸ Imesimamishwa (haijahesabiwa)"
+        : sStatus;
       return `Mechi ${idx+1}: ${escapeHtml(l.home_team)} v ${escapeHtml(l.away_team)} | Saa: ${fmtDate(l.match_date)} | Odds: ${l.odds} | Hali: ${sOutcome}`;
     }).join("\n");
     return `
@@ -197,7 +202,7 @@ async function loadMyPicks(){
             <div style="padding:4px 0;border-bottom:1px solid #eee">
               <div><b>${idx+1}. ${escapeHtml(l.home_team)} v ${escapeHtml(l.away_team)}</b></div>
               <div class="muted">Anza: ${fmtDate(l.match_date)} · Odds: ${l.odds}</div>
-              <div>SINGLE: ${l.outcome === "win" ? "✔ IMESHINDA" : l.outcome === "lose" ? "✘ IMEPOTEA" : statusSw(l.status)}</div>
+              <div>SINGLE: ${l.outcome === "win" ? "✔ IMESHINDA" + (l.score ? ` (${l.score})` : "") : l.outcome === "lose" ? "✘ IMEPOTEA" + (l.score ? ` (${l.score})` : "") : l.outcome === "void" ? "⏸ IMESIMAMISHWA (haijahesabiwa)" : statusSw(l.status)}</div>
             </div>
           `).join("")}
         </div>

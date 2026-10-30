@@ -32,9 +32,12 @@ def pick_status(pick):
         return "pending"
     if any(o == "lose" for o in outcomes):
         return "lost"
-    if all(o == "win" for o in outcomes):
+    if any(o is None for o in outcomes):
+        return "pending"
+    if any(o == "win" for o in outcomes):
         return "won"
-    return "pending"
+    # every leg postponed/cancelled - the stake is refunded
+    return "void"
 
 def serialize_pick(pick):
     return {
@@ -52,6 +55,11 @@ def serialize_pick(pick):
                 "odds": float(leg.odds),
                 "status": leg.prediction.status,
                 "outcome": leg.prediction.outcome,
+                "home_goals": leg.prediction.home_goals,
+                "away_goals": leg.prediction.away_goals,
+                "score": (f"{leg.prediction.home_goals}-{leg.prediction.away_goals}"
+                          if leg.prediction.home_goals is not None
+                          and leg.prediction.away_goals is not None else None),
             } for leg in pick.legs
         ],
     }

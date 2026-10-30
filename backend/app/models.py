@@ -30,6 +30,8 @@ class Prediction(Base):
     odds = Column(Numeric(10, 3), nullable=False)
     status = Column(String, nullable=False, default="scheduled")  # scheduled/live/finished
     outcome = Column(String, nullable=True)  # win/lose/void
+    home_goals = Column(Integer, nullable=True)  # final score, only when verified
+    away_goals = Column(Integer, nullable=True)
     allowed = Column(Boolean, nullable=False, default=False)
     allowed_at = Column(DateTime, nullable=True)
     created_by = Column(String, ForeignKey("users.id"), nullable=True)

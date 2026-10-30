@@ -40,6 +40,10 @@ def serialize(p):
         "odds": float(p.odds),
         "status": p.status,
         "outcome": p.outcome,
+        "home_goals": p.home_goals,
+        "away_goals": p.away_goals,
+        "score": (f"{p.home_goals}-{p.away_goals}"
+                  if p.home_goals is not None and p.away_goals is not None else None),
         "allowed": p.allowed,
         "allowed_at": p.allowed_at.isoformat() if p.allowed_at else None,
         "locked": bool(p.allowed and p.allowed_at and (datetime.utcnow() - p.allowed_at).total_seconds() > 300),
@@ -185,6 +189,7 @@ def settle_predictions(db, pause: float = 2.5, max_requests: int = 12) -> dict:
         if status == "finished" and hg is not None and ag is not None:
             p.outcome = "win" if (hg + ag) >= 2 else "lose"
             p.status = "finished"
+            p.home_goals, p.away_goals = int(hg), int(ag)
             settled += 1
         _time.sleep(pause)
 
