@@ -13,9 +13,20 @@ URL = "https://footystats.org/stats/over15-goals"
 # Cache file for FootyStats data (used when scraping is blocked)
 CACHE_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "footystats_cache.json")
 
-# NOTE: footystats/Cloudflare rejects full Chrome headers (TLS/header mismatch
-# triggers the "Just a moment" challenge). This bare UA is the one that works.
-BARE_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+# Realistic browser headers to mimic a human browsing FootyStats.
+# Cloudflare checks these headers; missing ones trigger 403.
+BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Referer": "https://www.google.com/",
+    "DNT": "1",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+}
+# Keep BARE_UA as alias for backward compat
+BARE_UA = BROWSER_HEADERS
 
 # Optional cloudscraper (bypasses Cloudflare JS challenge). Installed only if
 # available; falls back to plain requests otherwise.
@@ -423,6 +434,18 @@ def ingest_engine(db: Session, matches=None):
     return stored
 
 
+def _fetch_kickoff_for_match(home, away, match_date):
+    """Try to get real kickoff time from API-Football."""
+    try:
+        from .ai_results import fetch_kickoff_api
+        ko = fetch_kickoff_api(home, away, match_date)
+        if ko:
+            return ko
+    except Exception as e:
+        print("kickoff fetch error for", str(home).encode("ascii","replace").decode(), "vs", str(away).encode("ascii","replace").decode(), ":", e)
+    return None
+
+
 def ingest(db: Session):
     admin = db.query(User).filter(User.role == "admin").first()
     if not admin:
@@ -431,14 +454,26 @@ def ingest(db: Session):
     ingest_engine(db, matches)
     count = 0
     for m in matches:
-        match_dt = datetime.combine(m["date"], time(12, 0))
+        match_date = m["date"]
+        # Try to get real kickoff time from API-Football
+        ko = _fetch_kickoff_for_match(m["home"], m["away"], match_date)
+        if ko:
+            match_dt = ko
+            print(f"Kickoff found for {m['home']} vs ...")
+        else:
+            match_dt = datetime.combine(match_date, time(12, 0))
+            print("No kickoff found for", m["home"].encode("ascii","replace").decode(), "vs", m["away"].encode("ascii","replace").decode(), "using noon placeholder")
         exists = db.query(Prediction).filter(
             Prediction.home_team == m["home"],
             Prediction.away_team == m["away"],
-            Prediction.match_date >= datetime.combine(m["date"], time(0,0)),
-            Prediction.match_date < datetime.combine(m["date"] + timedelta(days=1), time(0,0)),
+            Prediction.match_date >= datetime.combine(match_date, time(0,0)),
+            Prediction.match_date < datetime.combine(match_date + timedelta(days=1), time(0,0)),
         ).first()
         if exists:
+            # Update existing prediction's match_date if we found a real kickoff
+            if ko and exists.match_date != ko:
+                exists.match_date = ko
+                db.commit()
             continue
         p = Prediction(
             home_team=m["home"],
@@ -453,4 +488,21 @@ def ingest(db: Session):
         db.add(p)
         count += 1
     db.commit()
+
+    # Also update EngineMatch kickoff_at and match_date
+    for m in matches:
+        match_date = m["date"]
+        ko = _fetch_kickoff_for_match(m["home"], m["away"], match_date)
+        if ko:
+            row = db.query(EngineMatch).filter(
+                EngineMatch.home_team == m["home"],
+                EngineMatch.away_team == m["away"],
+                EngineMatch.match_date >= datetime.combine(match_date, time(0,0)),
+                EngineMatch.match_date < datetime.combine(match_date + timedelta(days=1), time(0,0)),
+            ).first()
+            if row:
+                row.kickoff_at = ko
+                row.match_date = ko
+                db.commit()
+
     return count
