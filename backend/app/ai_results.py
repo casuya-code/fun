@@ -8,12 +8,16 @@ from .config import settings
 
 
 class AIResult:
-    def __init__(self, finished=False, home_score=None, away_score=None, confidence=0.0, source=None):
+    def __init__(self, finished=False, home_score=None, away_score=None, confidence=0.0, source=None,
+                 postponed=False):
         self.finished = finished
         self.home_score = home_score
         self.away_score = away_score
         self.confidence = confidence
         self.source = source
+        # True when the source says the match will not be played as scheduled
+        # (postponed / cancelled / abandoned / suspended) - no score exists.
+        self.postponed = postponed
 
 
 def fetch_via_web_scrape(home_team: str, away_team: str, match_date=None) -> Optional[AIResult]:
@@ -171,6 +175,10 @@ def fetch_via_api_football(home_team: str, away_team: str, match_date=None) -> O
                 if status in ("FT", "AET", "PEN", "AWD", "WO") and hg is not None and ag is not None:
                     return AIResult(finished=True, home_score=int(hg), away_score=int(ag),
                                     confidence=0.99, source="api-football")
+                if status in ("PST", "CANC", "ABD", "SUSP", "INT"):
+                    # match will not be played / was interrupted - never guess a score
+                    return AIResult(postponed=True, confidence=0.99, source="api-football",
+                                    finished=False)
                 # not finished yet
                 return None
             except Exception as e:
@@ -188,7 +196,7 @@ def ai_fetch_score(home_team: str, away_team: str, match_date=None,
     def _try(h, a):
         try:
             r = fetch_via_api_football(h, a, match_date)
-            if r and r.finished and r.confidence >= 0.9:
+            if r and (r.finished or r.postponed) and r.confidence >= 0.9:
                 return r
         except Exception as e:
             print(f"API-Football fetch error: {e}")

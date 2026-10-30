@@ -187,7 +187,7 @@ async function guarded(fn){
 async function loadSlips(){
   const slips = await API.get("/api/adm/slips");
   const el = document.getElementById("adm-slips");
-  const stSw = { draft: "Inasubiri", won: "Imeshinda", lost: "Imepotea" };
+  const stSw = { draft: "Inasubiri", won: "Imeshinda", lost: "Imepotea", void: "Imerudishiwa" };
   if(!slips.length){ el.innerHTML = "<div class='muted'>Hakuna mikeka bado.</div>"; return; }
   el.innerHTML = slips.map(s=>`
     <div class="card">
@@ -210,7 +210,7 @@ async function loadSlips(){
             ${l.kickoff?` · ${fmtKickoff(l.kickoff)}`:""}
           </div>
           ${l.outcome ? `
-            <div class="muted">${l.outcome==="win"?"✔ Imeshinda":"✘ Imepotea"}${l.score?` (${l.score})`:""}</div>`
+            <div class="muted">${l.outcome==="win"?"✔ Imeshinda":l.outcome==="void"?"⏸ Imesimamishwa (haijahesabiwa)":"✘ Imepotea"}${l.score?` (${l.score})`:""}</div>`
           : s.status==="draft" ? `
             <div class="muted" style="margin-top:6px">Inasubiri matokeo kiotomatiki (AI)...</div>` : ""}
         </div>

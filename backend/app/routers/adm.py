@@ -158,6 +158,25 @@ def _same_team(a, b) -> bool:
         return False
 
 
+def _decide_slip_status(outcomes):
+    """Settle an accumulator from its leg outcomes.
+
+    Returns None while any leg is still pending, else "won"/"lost"/"void".
+    A postponed/cancelled leg has outcome "void": it is never a win, but it
+    is dropped from the acca (odds = 1.0) instead of killing it. So when only
+    the postponed leg is left and every other leg won, the acca is WON.
+    """
+    if not outcomes:
+        return None
+    if any(o == "lose" for o in outcomes):
+        return "lost"
+    if any(o is None for o in outcomes):
+        return None
+    if any(o == "win" for o in outcomes):
+        return "won"
+    return "void"
+
+
 def settle_pending(db, pause: float = 1.0, max_requests: int = 50) -> dict:
     """Look up final scores for every unsettled leg and settle what we can using AI + scraping."""
     import time as _time
@@ -201,6 +220,7 @@ def settle_pending(db, pause: float = 1.0, max_requests: int = 50) -> dict:
         hg = ag = None
         status = None
         ko = None
+        postponed = False
 
         # 1) API-Football first: authoritative final scores (FT), never the
         #    scraped H2H page which can show a historical score.
@@ -210,7 +230,10 @@ def settle_pending(db, pause: float = 1.0, max_requests: int = 50) -> dict:
                 alt_h, alt_a = alt_a, alt_h  # align alias order with the DB
             ai_res = ai_fetch_score(m.home_team, m.away_team, m.match_date,
                                     alt_home=alt_h, alt_away=alt_a)
-            if ai_res and ai_res.finished and ai_res.home_score is not None and ai_res.away_score is not None:
+            if ai_res and ai_res.postponed:
+                postponed = True
+                print(f"match postponed/cancelled: {m.home_team} vs {m.away_team} via {ai_res.source}")
+            elif ai_res and ai_res.finished and ai_res.home_score is not None and ai_res.away_score is not None:
                 hg, ag = ai_res.home_score, ai_res.away_score
                 status = "finished"
                 print(f"AI settled {m.home_team} vs {m.away_team}: {hg}-{ag} via {ai_res.source}")
@@ -220,7 +243,9 @@ def settle_pending(db, pause: float = 1.0, max_requests: int = 50) -> dict:
         # 2) footystats page fallback - only trusted when the page's own
         #    kickoff matches this fixture date (guards against H2H history
         #    scores like "5-2" belonging to a different meeting).
-        if (status != "finished" or hg is None or ag is None) and m.match_url:
+        #    Skipped entirely for postponed matches: API-Football already
+        #    said there is no result to show.
+        if not postponed and (status != "finished" or hg is None or ag is None) and m.match_url:
             try:
                 p_status, p_hg, p_ag, p_ko = fetch_match_page(m.match_url)
                 if p_status == "finished" and p_hg is not None and p_ag is not None:
@@ -242,14 +267,33 @@ def settle_pending(db, pause: float = 1.0, max_requests: int = 50) -> dict:
                     l.home_goals, l.away_goals = hg, ag
                     l.outcome = "win" if (hg + ag) >= 2 else "lose"
                     settled_legs += 1
+        elif postponed:
+            # no score exists - the leg is void (dropped from the accumulator),
+            # never displayed as won/lost.
+            for l in pending:
+                if l.match_id == m.id and not l.outcome:
+                    l.outcome = "void"
+                    settled_legs += 1
         _time.sleep(pause)
 
     newly = 0
     for slip in slips:
         outcomes = [l.outcome for l in slip.legs]
-        if outcomes and all(o in ("win", "lose") for o in outcomes):
-            slip.status = "lost" if "lose" in outcomes else "won"
-            newly += 1
+        new_status = _decide_slip_status(outcomes)
+        if not new_status:
+            continue
+        if new_status == "won":
+            void_n = sum(1 for o in outcomes if o == "void")
+            if void_n:
+                # postponed legs pay as 1.0 - recompute the real acca odds
+                eff = Decimal("1")
+                for l in slip.legs:
+                    if l.outcome == "win":
+                        eff *= l.odds
+                slip.combined_odds = round(eff, 3)
+                slip.note = f"legi {void_n} imesimamishwa (imeondolewa kwenye odds)"
+        slip.status = new_status
+        newly += 1
     db.commit()
     note = "AI imetumia vyanzo mbadala" if settled_legs > 0 else None
     if limited and settled_legs == 0:
