@@ -1,0 +1,45 @@
+# Render Blueprint for Betva (FastAPI + static frontend + Postgres)
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Deploy: Render Dashboard -> New -> Blueprint -> pick this repo -> apply.
+# Values marked `sync: false` are secrets you enter in the dashboard.
+
+services:
+  - type: web
+    name: betva
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.8
+      - key: DATABASE_URL
+        fromDatabase:
+          name: betva-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NICKNAME
+        value: Admin
+      - key: FOOTBALL_API_KEY
+        sync: false
+      - key: FOOTBALL_API_HOST
+        value: v3.football.api-sports.io
+      # Same-origin requests (https://<service>.onrender.com) are accepted
+      # automatically. Only set ALLOWED_ORIGINS in the dashboard if you add a
+      # custom domain, e.g. "https://betva.example.com".
+
+databases:
+  - name: betva-db
+    databaseName: betva
+    user: betva
+    plan: free
+    region: frankfurt

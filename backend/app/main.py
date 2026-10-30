@@ -1,6 +1,7 @@
 import os
 import threading
 from datetime import datetime, timedelta, date
+from urllib.parse import urlsplit
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -31,6 +32,30 @@ from starlette.requests import Request as _Req
 from starlette.responses import JSONResponse as _JSONResponse
 import time as _t
 
+def _origin_allowed(request: _Req, origin: str) -> bool:
+    """Accept configured origins plus the site's own origin.
+
+    The deployed hostname (e.g. https://betva.onrender.com) is not known when
+    the app is built, and same-origin POSTs are safe by definition. Comparing
+    the Origin header with Host / X-Forwarded-Host keeps forms working without
+    having to hardcode the Render URL in ALLOWED_ORIGINS.
+    """
+    if origin in ALLOWED_ORIGINS:
+        return True
+    try:
+        parts = urlsplit(origin)
+    except ValueError:
+        return False
+    if parts.scheme not in ("http", "https") or not parts.netloc:
+        return False
+    origin_host = parts.netloc.lower()
+    host = (request.headers.get("host") or "").strip().lower()
+    if host and origin_host == host:
+        return True
+    forwarded = (request.headers.get("x-forwarded-host") or "").split(",")[0].strip().lower()
+    return bool(forwarded) and origin_host == forwarded
+
+
 _rate: dict = {}
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -38,7 +63,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Origin check for state-changing API requests
         if request.method in ("POST", "PUT", "DELETE", "PATCH"):
             origin = request.headers.get("origin")
-            if origin and origin not in ALLOWED_ORIGINS:
+            if origin and not _origin_allowed(request, origin):
                 return _JSONResponse({"detail": "Origin not allowed"}, status_code=403)
         # Only API traffic is rate-limited; static files are served normally.
         if not request.url.path.startswith("/api/"):
