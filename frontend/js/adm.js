@@ -205,7 +205,10 @@ async function loadSlips(){
         <div class="pick-item">
           <div>${esc(l.home_team)} v ${esc(l.away_team)}</div>
           <div class="muted">
-            Over 1.5 ${l.over15_pct!=null?l.over15_pct+"%":"-"} · Odds ${l.odds}
+            Over 1.5 ${l.over15_pct!=null?l.over15_pct+"%":"-"}
+            · wastani mabao ${l.avg_goals!=null?l.avg_goals:"-"}
+            · ubora ${l.quality!=null?l.quality:"-"}
+            · Odds ${l.odds}
             ${l.score?` · Matokeo <b>${l.score}</b>`:""}
             ${l.kickoff?` · ${fmtKickoff(l.kickoff)}`:""}
           </div>

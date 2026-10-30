@@ -44,6 +44,16 @@ MIN_COMBINED = Decimal("10")       # target 10+ combined odds
 MAX_LEGS = 20                      # engine-only cap (users stay at 5); chance 2 beyond 12 if needed
 KELLY_FRACTION = Decimal("0.25")   # 1/4 Kelly (conservative)
 
+# --- match quality ranking (primary selection criterion) ---
+# A good leg must be BOTH frequent Over 1.5 (high %) AND high-scoring (avg goals).
+DEFAULT_AVG_GOALS = Decimal("2.5")  # neutral fallback when a match has no goal average
+QUALITY_PCT_FLOOR = Decimal("78")   # same floor as the Over 1.5 candidate filter
+QUALITY_PCT_CEIL = Decimal("100")
+QUALITY_GOALS_FLOOR = Decimal("2.0")  # ~1 goal per team = poor for Over 1.5
+QUALITY_GOALS_CEIL = Decimal("6.0")   # 6+ average goals = top quality, capped
+QUALITY_PCT_WEIGHT = Decimal("0.5")
+QUALITY_GOALS_WEIGHT = Decimal("0.5")
+
 # --- settlement throttling (the free source rate-limits us) ---
 RECHECK_MINUTES = 45               # do not re-query the same match more often
 
@@ -81,6 +91,39 @@ def _pct(m: EngineMatch) -> Decimal:
     return m.over15_pct if m.over15_pct is not None else DEFAULT_OVER15
 
 
+def _avg_goals(m: EngineMatch) -> Decimal:
+    return m.avg_goals if m.avg_goals is not None else DEFAULT_AVG_GOALS
+
+
+def _clamp01(v: Decimal) -> Decimal:
+    if v < 0:
+        return Decimal("0")
+    if v > 1:
+        return Decimal("1")
+    return v
+
+
+def _quality(m: EngineMatch) -> Decimal:
+    """0..1 match quality used to rank legs before anything else.
+
+    Half of the score comes from the historical Over 1.5 hit-rate and half
+    from the average goals of the team's matches, so a match only ranks high
+    when BOTH are strong (e.g. 100% with 2.0 goals scores like 88% with 6.0).
+    """
+    pn = _clamp01((_pct(m) - QUALITY_PCT_FLOOR) / (QUALITY_PCT_CEIL - QUALITY_PCT_FLOOR))
+    gn = _clamp01((_avg_goals(m) - QUALITY_GOALS_FLOOR) / (QUALITY_GOALS_CEIL - QUALITY_GOALS_FLOOR))
+    return round(QUALITY_PCT_WEIGHT * pn + QUALITY_GOALS_WEIGHT * gn, 4)
+
+
+def _quality_sort_key(m: EngineMatch):
+    """Quality first, then raw goal average, hit-rate and finally odds.
+
+    Odds are only a tie-breaker now: the old "highest odds first" ranking
+    deliberately preferred the weakest Over 1.5 matches.
+    """
+    return (_quality(m), _avg_goals(m), _pct(m), m.odds)
+
+
 def _combined(odds_list) -> Decimal:
     total = Decimal("1")
     for o in odds_list:
@@ -112,12 +155,16 @@ def _serialize_slip(slip: EngineSlip) -> dict:
         "kelly_stake": float(slip.kelly_stake) if slip.kelly_stake is not None else None,
         "status": slip.status,
         "note": slip.note,
+        "quality": (lambda qs: float(round(sum(qs, Decimal("0")) / len(qs), 4)) if qs else None)(
+            [_quality(leg.match) for leg in slip.legs if leg.match]),
         "legs": [
             {
                 "match_id": leg.match_id,
                 "home_team": leg.match.home_team if leg.match else "?",
                 "away_team": leg.match.away_team if leg.match else "?",
                 "over15_pct": float(leg.match.over15_pct) if leg.match and leg.match.over15_pct is not None else None,
+                "avg_goals": float(leg.match.avg_goals) if leg.match and leg.match.avg_goals is not None else None,
+                "quality": float(_quality(leg.match)) if leg.match else None,
                 "odds": float(leg.odds),
                 "outcome": leg.outcome,
                 "score": f"{leg.home_goals}-{leg.away_goals}"
@@ -321,6 +368,7 @@ def candidates(min_over: float = float(OVER15_THRESHOLD), db: Session = Depends(
             continue
         p = _pct(m)
         qualifies = p >= Decimal(str(min_over))
+        q = _quality(m)
         out.append({
             "id": m.id,
             "home_team": m.home_team,
@@ -332,10 +380,13 @@ def candidates(min_over: float = float(OVER15_THRESHOLD), db: Session = Depends(
             "avg_goals": float(m.avg_goals) if m.avg_goals is not None else None,
             "league": m.league or "-",
             "qualifies": qualifies,
+            "quality": float(q),
             "used": bool(m.used),
             # human-readable explanation of WHY this is (or is not) a candidate
-            "reason": f"Over 1.5 {p}% · wastani mabao {m.avg_goals if m.avg_goals is not None else '-'}",
+            "reason": f"Over 1.5 {p}% · wastani mabao {m.avg_goals if m.avg_goals is not None else '-'} · ubora {q}",
         })
+    # Same order the auto-combiner uses: best quality (both metrics) first.
+    out.sort(key=lambda c: (c["qualifies"], c["quality"] or 0), reverse=True)
     return out
 
 
@@ -357,7 +408,7 @@ def sync(db: Session = Depends(get_db), user=Depends(admin_user)):
 @router.post("/generate")
 @_one_at_a_time
 def generate(db: Session = Depends(get_db), user=Depends(admin_user)):
-    """Auto-build one accumulator: 12-leg base, extend to 20 if odds stay under 10."""
+    """Auto-build one accumulator: 12 best-quality legs, extend to 20 if odds stay under 10."""
     from datetime import datetime
     from sqlalchemy import or_
     now = datetime.now()
@@ -385,6 +436,10 @@ def generate(db: Session = Depends(get_db), user=Depends(admin_user)):
     if len(upcoming) < 2:
         raise HTTPException(400, "Hakuna mechi za kutosha (angalau 2 zenye Over 1.5 juu ya 78%)")
 
+    # Primary ranking: Over 1.5 % + average goals (quality), NOT odds. A high
+    # odds leg is usually the weakest one, so it only breaks ties now.
+    upcoming.sort(key=_quality_sort_key, reverse=True)
+
     legs, used_teams, used_ids = [], set(), set()
 
     def _try_add(m):
@@ -409,13 +464,18 @@ def generate(db: Session = Depends(get_db), user=Depends(admin_user)):
 
     combined = _combined([m.odds for m in legs])
 
-    # Chance 2: extend up to 20 legs only when the base is still below 10
+    # Chance 2: extend up to 20 legs only when the base is still below 10.
+    # The base already took the best quality; here we pick the highest odds
+    # among the remaining eligible matches so 10+ is reached with the fewest
+    # extra legs (still only matches above the 78% Over 1.5 floor).
     if combined < MIN_COMBINED:
-        for m in upcoming:
+        remaining = sorted((m for m in upcoming if m not in legs),
+                           key=lambda m: m.odds, reverse=True)
+        for m in remaining:
             if len(legs) >= MAX_LEGS or combined >= MIN_COMBINED:
                 break
-            _try_add(m)
-            combined = _combined([m.odds for m in legs])
+            if _try_add(m):
+                combined = _combined([x.odds for x in legs])
 
     note = "Otomatiki (Step 1 + Step 4)"
     if len(legs) > 12 and combined >= MIN_COMBINED:
@@ -423,6 +483,8 @@ def generate(db: Session = Depends(get_db), user=Depends(admin_user)):
     elif combined < MIN_COMBINED:
         # Option 3: create with whatever odds are available
         note = f"Otomatiki (Option 3: odds {combined} < {MIN_COMBINED})"
+    avg_quality = round(sum((_quality(m) for m in legs), Decimal("0")) / len(legs), 4)
+    note += f" · ubora {avg_quality}"
 
     win_prob = Decimal("1")
     for m in legs:
