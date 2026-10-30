@@ -287,3 +287,30 @@ def history(db: Session = Depends(get_db), admin=Depends(admin_user)):
         day["hit_rate"] = round(day["won"] / settled * 100, 1) if settled else None
         out.append(day)
     return out
+
+@router.post("/refresh-kickoffs")
+def refresh_kickoffs_endpoint(db: Session = Depends(get_db), admin=Depends(admin_user)):
+    """Manually refresh kickoff times for all matches using API-Football."""
+    from .scraper import _fetch_kickoff_for_match
+    from ..models import EngineMatch, Prediction
+    from datetime import datetime, timedelta, time
+    from ..config import settings
+
+    has_key = bool(settings.football_api_key)
+    engine_matches = db.query(EngineMatch).filter(EngineMatch.kickoff_at.is_(None)).all()
+    updated = 0
+    errors = []
+    for m in engine_matches:
+        ko = _fetch_kickoff_for_match(m.home_team, m.away_team, m.match_date)
+        if ko:
+            m.kickoff_at = ko
+            m.match_date = ko
+            db.query(Prediction).filter(
+                Prediction.home_team == m.home_team,
+                Prediction.away_team == m.away_team,
+            ).update({"match_date": ko}, synchronize_session=False)
+            db.commit()
+            updated += 1
+        else:
+            errors.append(f"{m.home_team} vs {m.away_team}")
+    return {"has_football_api_key": has_key, "engine_matches_without_kickoff": len(engine_matches), "updated": updated, "not_found": errors[:10]}
