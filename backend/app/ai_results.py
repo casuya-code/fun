@@ -20,91 +20,317 @@ class AIResult:
         self.postponed = postponed
 
 
+# ---------------------------------------------------------------------------
+# Groq AI extraction
+#
+# Groq is used ONLY to read text the app has already downloaded (match/search
+# pages). It is never asked "what was the score?" from memory, so it cannot
+# fabricate a result: a score is accepted only when the same numbers appear in
+# the page text next to a full-time marker ("FT", "Full Time", "Final", ...).
+# ---------------------------------------------------------------------------
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+_GROQ_FALLBACK_MODEL = "openai/gpt-oss-20b"
+_GROQ_CACHE = {}          # (source, home, away, date) -> (timestamp, AIResult|None)
+_GROQ_TTL = 6 * 3600      # do not re-ask the same question for 6 hours
+
+_SCORE_RE = re.compile(r"(?<!\d)(\d{1,2})\s*[-–:]\s*(\d{1,2})(?!\d)")
+# "result" is deliberately excluded: search pages label head-to-head history
+# with it, which would let an old meeting masquerade as today's score.
+_FINISHED_RE = re.compile(r"\b(?:ft|aet|pen|full[- ]?time|final|finished|ended)\b", re.I)
+_POSTPONED_RE = re.compile(
+    r"postpon|cancel|abandon|suspend|not (?:been )?played|walkover|awarded", re.I)
+
+
+def _load_json(text):
+    """Parse a JSON object from a model reply (tolerates ```json fences)."""
+    if not text:
+        return None
+    s = text.strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```(?:json)?\s*|\s*```$", "", s, flags=re.S)
+    try:
+        return json.loads(s)
+    except Exception:
+        m = re.search(r"\{.*\}", s, re.S)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                return None
+    return None
+
+
+def _groq_request(system: str, user: str):
+    key = (getattr(settings, "groq_api_key", "") or "").strip()
+    if not key:
+        return None
+    model = (getattr(settings, "groq_model", "") or "").strip() or "openai/gpt-oss-120b"
+    models = [model]
+    if model != _GROQ_FALLBACK_MODEL:
+        models.append(_GROQ_FALLBACK_MODEL)
+    for name in models:
+        try:
+            r = requests.post(
+                GROQ_URL,
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                json={
+                    "model": name,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    "temperature": 0,
+                    "max_completion_tokens": 400,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=30,
+            )
+            if r.status_code == 200:
+                content = r.json()["choices"][0]["message"]["content"]
+                obj = _load_json(content)
+                if obj is not None:
+                    return obj
+                print(f"Groq returned unparsable JSON ({name})")
+            else:
+                print(f"Groq error {r.status_code} ({name}): {r.text[:160]}")
+                # auth/rate-limit problems will not improve with another model
+                if r.status_code not in (400, 404):
+                    break
+        except Exception as e:
+            print("Groq request error:", e)
+            break
+    return None
+
+
+def _team_in(name: str, low_window: str) -> bool:
+    first = name.lower().split()[0] if name.split() else ""
+    for cand in (name.lower(), first if len(first) >= 4 else "", _norm(name)[:6]):
+        if len(cand) >= 3 and cand in low_window:
+            return True
+    return False
+
+
+def _date_near(text: str, start: int, end: int, match_date) -> bool:
+    """True when the match date appears beside a scoreline.
+
+    Used for search-result pages, where several fixtures (and old meetings) are
+    listed together; the date is what tells today's match apart from history.
+    """
+    try:
+        if isinstance(match_date, datetime):
+            d = match_date.date()
+        elif isinstance(match_date, date):
+            d = match_date
+        else:
+            d = datetime.strptime(str(match_date)[:10], "%Y-%m-%d").date()
+    except Exception:
+        return True  # unknown date: rely on the full-time marker check
+    tokens = [
+        d.strftime("%d %b").lower(),
+        d.strftime("%b %d").lower(),
+        d.strftime("%d %B").lower(),
+        d.strftime("%B %d").lower(),
+        d.isoformat(),
+    ]
+    window = text[max(0, start - 350):end + 350].lower()
+    return any(t in window for t in tokens)
+
+
+def _slice_for_ai(text: str, home_team: str, away_team: str, limit: int = 7000,
+                  match_date=None, require_final_results: bool = False) -> str:
+    """Window around the current match's result, never the page header/nav.
+
+    Only two kinds of anchors are trusted:
+      1. a "Final Results" section (FootyStats' current-match block);
+      2. a scoreline with a full-time marker AND the fixture date next to it.
+    If neither exists, no text is sent to the model - the match stays pending
+    instead of risking a head-to-head score being mistaken for today's result.
+    """
+    low = text.lower()
+
+    # 1) FootyStats current-match section
+    start = 0
+    while True:
+        i = low.find("final results", start)
+        if i < 0:
+            break
+        a = max(0, i - 600)
+        b = min(len(text), i + 5000)
+        window = low[a:b]
+        if _team_in(home_team, window) and _team_in(away_team, window):
+            return text[a:b][:limit]
+        start = i + len("final results")
+
+    if require_final_results:
+        # Match pages must prove the CURRENT meeting finished; the form guide
+        # below them is full of old "2 - 1 FT" lines we must never settle on.
+        return ""
+
+    # 2) A scoreline with a full-time marker ("FT", "Full Time", "Final", ...)
+    for m in _SCORE_RE.finditer(text):
+        around = text[max(0, m.start() - 140):m.end() + 140]
+        if not _FINISHED_RE.search(around):
+            continue
+        wide = low[max(0, m.start() - 300):m.end() + 300]
+        if not (_team_in(home_team, wide) and _team_in(away_team, wide)):
+            continue
+        if match_date is not None and not _date_near(text, m.start(), m.end(), match_date):
+            continue
+        a = max(0, m.start() - 800)
+        b = min(len(text), m.end() + 3000)
+        return text[a:b][:limit]
+
+    return ""
+
+
+def _score_pair_with_final(text: str, hg: int, ag: int) -> bool:
+    """The exact score must appear in the text next to a full-time marker."""
+    for m in _SCORE_RE.finditer(text):
+        if int(m.group(1)) != hg or int(m.group(2)) != ag:
+            continue
+        around = text[max(0, m.start() - 140):m.end() + 140]
+        if _FINISHED_RE.search(around):
+            return True
+    return False
+
+
+def _validate_groq(obj, text: str, home_team: str, away_team: str, source: str):
+    """Reject anything the page text does not actually support."""
+    if not isinstance(obj, dict):
+        return None
+    status = str(obj.get("status", "")).strip().lower()
+    if status == "postponed":
+        if not _POSTPONED_RE.search(text):
+            return None
+        return AIResult(postponed=True, confidence=0.8, source=source)
+    if status != "finished":
+        return None
+    try:
+        hg = int(obj.get("home_score"))
+        ag = int(obj.get("away_score"))
+    except (TypeError, ValueError):
+        return None
+    if not (0 <= hg <= 15 and 0 <= ag <= 15):
+        return None
+    if not _score_pair_with_final(text, hg, ag):
+        return None
+    return AIResult(finished=True, home_score=hg, away_score=ag, confidence=0.8, source=source)
+
+
+_GROQ_SYSTEM = (
+    "You extract football results from text. Reply with ONLY a JSON object:\n"
+    '{"status":"finished"|"postponed"|"unknown","home_score":int|null,'
+    '"away_score":int|null,"evidence":"short exact quote","confidence":0..1}\n'
+    "Rules:\n"
+    "- Use ONLY the supplied text. Never use outside knowledge.\n"
+    "- 'finished' only when the text clearly shows the FINAL score of THIS match\n"
+    "  (home team vs away team), e.g. next to FT / Full Time / Final.\n"
+    "- Ignore head-to-head history and previous meetings; they must not be used.\n"
+    "- 'postponed' only when the text says postponed/cancelled/abandoned/suspended.\n"
+    "- If the text does not prove a result, return status 'unknown' with null scores.\n"
+    "- Never guess."
+)
+
+
+def groq_extract_page(text: str, home_team: str, away_team: str, source: str = "groq",
+                      match_date=None, require_final_results: bool = False):
+    """Ask Groq to read a page we already downloaded. Returns AIResult or None.
+
+    A cheap pre-check (score or postponement wording in the snippet) avoids
+    calling the API for pages that cannot possibly contain a result.
+
+    ``require_final_results`` is set for match pages: only the page's own
+    "Final Results" block may be used, never the head-to-head form guide below.
+    """
+    if not text or not home_team or not away_team:
+        return None
+    if not (getattr(settings, "groq_api_key", "") or "").strip():
+        return None
+    snippet = _slice_for_ai(text, home_team, away_team, match_date=match_date,
+                            require_final_results=require_final_results)
+    if not snippet:
+        return None
+    if not (_SCORE_RE.search(snippet) or _POSTPONED_RE.search(snippet)):
+        return None
+
+    cache_key = (source, _norm(home_team), _norm(away_team), str(match_date)[:10])
+    import time as _time
+    hit = _GROQ_CACHE.get(cache_key)
+    if hit and (_time.time() - hit[0]) < _GROQ_TTL:
+        return hit[1]
+
+    user = (f"Match: {home_team} vs {away_team}\n"
+            f"Date: {str(match_date)[:10] if match_date else 'unknown'}\n\n"
+            f"TEXT:\n{snippet}")
+    obj = _groq_request(_GROQ_SYSTEM, user)
+    result = _validate_groq(obj, snippet, home_team, away_team, source)
+    # Cache only successes: a transient API failure must not silence retries
+    # for the next 6 hours while the match is still pending.
+    if result is not None:
+        _GROQ_CACHE[cache_key] = (_time.time(), result)
+    return result
+
+
+def _extract_score_regex(text: str, home_team: str, away_team: str):
+    """Read a final score only when a full-time marker sits next to it.
+
+    Search pages also list previous meetings; without this guard an old
+    head-to-head score could settle today's match.
+    """
+    for m in _SCORE_RE.finditer(text):
+        hg, ag = int(m.group(1)), int(m.group(2))
+        if hg > 15 or ag > 15:
+            continue
+        around = text[max(0, m.start() - 160):m.end() + 160]
+        low = around.lower()
+        if not _FINISHED_RE.search(around):
+            continue
+        if home_team.lower()[:4] not in low or away_team.lower()[:4] not in low:
+            continue
+        # keep the page's order: "Home 2-1 Away" vs "Away 1-2 Home"
+        if low.find(home_team.lower()[:4]) > low.find(away_team.lower()[:4]):
+            hg, ag = ag, hg
+        return hg, ag
+    return None
+
+
+def _page_text(url: str, headers: dict):
+    try:
+        r = requests.get(url, headers=headers, timeout=15)
+        if r.status_code != 200:
+            return None
+        return BeautifulSoup(r.text, "lxml").get_text(" ", strip=True)
+    except Exception as e:
+        print(f"page fetch error ({url[:60]}): {e}")
+        return None
+
+
 def fetch_via_web_scrape(home_team: str, away_team: str, match_date=None) -> Optional[AIResult]:
-    """Try multiple free sources without API keys."""
+    """Try free sources; regex first, then Groq reads the same page text."""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
     }
-    
-    # Try Livescore
-    try:
-        # Try to find match on livescore
-        search_url = f"https://www.livescore.com/en/football/search/?q={home_team.replace(' ', '%20')}%20{away_team.replace(' ', '%20')}"
-        r = requests.get(search_url, headers=headers, timeout=15)
-        if r.status_code == 200:
-            soup = BeautifulSoup(r.text, 'lxml')
-            text = soup.get_text(' ', strip=True)
-            # Look for score patterns
-            # Pattern like "Team1 X - Y Team2" or "X - Y"
-            patterns = [
-                rf'{re.escape(home_team)}.*?(\d+)\s*[-–]\s*(\d+).*?{re.escape(away_team)}',
-                rf'{re.escape(away_team)}.*?(\d+)\s*[-–]\s*(\d+).*?{re.escape(home_team)}',
-            ]
-            for pattern in patterns:
-                m = re.search(pattern, text, re.I | re.S)
-                if m:
-                    try:
-                        if re.search(pattern, text, re.I | re.S).group(0).lower().find(home_team.lower()) < re.search(pattern, text, re.I | re.S).group(0).lower().find(away_team.lower()):
-                            hg, ag = int(m.group(1)), int(m.group(2))
-                        else:
-                            ag, hg = int(m.group(1)), int(m.group(2))
-                        if hg <= 15 and ag <= 15:
-                            return AIResult(finished=True, home_score=hg, away_score=ag, confidence=0.85, source="livescore")
-                    except:
-                        pass
-            # General score patterns near team names
-            for m in re.finditer(r'(\d+)\s*[-–]\s*(\d+)', text):
-                start = max(0, m.start()-100)
-                end = min(len(text), m.end()+100)
-                context = text[start:end].lower()
-                if home_team.lower()[:4] in context and away_team.lower()[:4] in context:
-                    hg, ag = int(m.group(1)), int(m.group(2))
-                    if hg <= 15 and ag <= 15:
-                        return AIResult(finished=True, home_score=hg, away_score=ag, confidence=0.8, source="livescore")
-    except Exception as e:
-        print(f"Livescore search error: {e}")
-    
-    # Try Flashscore
-    try:
-        search_url = f"https://www.flashscore.com/search/?q={home_team.replace(' ', '+')}+{away_team.replace(' ', '+')}"
-        r = requests.get(search_url, headers=headers, timeout=15)
-        if r.status_code == 200:
-            soup = BeautifulSoup(r.text, 'lxml')
-            text = soup.get_text(' ', strip=True)
-            for m in re.finditer(r'(\d+)\s*[-–]\s*(\d+)', text):
-                start = max(0, m.start()-150)
-                end = min(len(text), m.end()+150)
-                context = text[start:end].lower()
-                if home_team.lower()[:4] in context and away_team.lower()[:4] in context:
-                    # Check if it says finished/FT
-                    if 'ft' in context or 'finished' in context or 'result' in context:
-                        hg, ag = int(m.group(1)), int(m.group(2))
-                        if hg <= 15 and ag <= 15:
-                            return AIResult(finished=True, home_score=hg, away_score=ag, confidence=0.9, source="flashscore")
-    except Exception as e:
-        print(f"Flashscore search error: {e}")
-    
-    # Try ESPN
-    try:
-        search_url = f"https://www.espn.com/soccer/search/_/q/{home_team.replace(' ', '%20')}%20{away_team.replace(' ', '%20')}"
-        r = requests.get(search_url, headers=headers, timeout=15)
-        if r.status_code == 200:
-            soup = BeautifulSoup(r.text, 'lxml')
-            text = soup.get_text(' ', strip=True)
-            for m in re.finditer(r'(\d+)\s*[-–]\s*(\d+)', text):
-                start = max(0, m.start()-100)
-                end = min(len(text), m.end()+100)
-                context = text[start:end].lower()
-                if home_team.lower()[:4] in context and away_team.lower()[:4] in context:
-                    if 'final' in context or 'ft' in context:
-                        hg, ag = int(m.group(1)), int(m.group(2))
-                        if hg <= 15 and ag <= 15:
-                            return AIResult(finished=True, home_score=hg, away_score=ag, confidence=0.85, source="espn")
-    except Exception as e:
-        print(f"ESPN search error: {e}")
-    
+    h, a = home_team.replace(' ', '%20'), away_team.replace(' ', '%20')
+    sources = [
+        ("livescore", f"https://www.livescore.com/en/football/search/?q={h}%20{a}"),
+        ("flashscore", f"https://www.flashscore.com/search/?q={home_team.replace(' ', '+')}+{away_team.replace(' ', '+')}"),
+        ("espn", f"https://www.espn.com/soccer/search/_/q/{h}%20{a}"),
+    ]
+    for name, url in sources:
+        text = _page_text(url, headers)
+        if not text:
+            continue
+        pair = _extract_score_regex(text, home_team, away_team)
+        if pair:
+            hg, ag = pair
+            return AIResult(finished=True, home_score=hg, away_score=ag,
+                            confidence=0.85, source=name)
+        # Groq reads the same downloaded text (it never recalls facts itself)
+        ai = groq_extract_page(text, home_team, away_team, f"groq/{name}", match_date)
+        if ai:
+            return ai
     return None
 
 

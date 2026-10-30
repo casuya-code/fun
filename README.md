@@ -11,6 +11,7 @@ Betva is a betting picks web application built with FastAPI, PostgreSQL, and van
 - Expert tracking and following system
 - User authentication (register/login/forgot/password reset)
 - Admin panel for match management and accumulator generation
+- AI result settlement: Groq reads downloaded match pages (strict, never guesses)
 - Visitor counter (counts all visits)
 - Swahili UI text
 
@@ -37,7 +38,7 @@ Steps:
 
 1. Push this repository to GitHub.
 2. In the Render Dashboard choose **New → Blueprint** and connect the repo.
-3. Enter the secrets Render prompts for: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `FOOTBALL_API_KEY`.
+3. Enter the secrets Render prompts for: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `FOOTBALL_API_KEY`, `GROQ_API_KEY`.
 4. Apply the Blueprint and wait for the first deploy; the health check is `/health`.
 5. Open `https://<service-name>.onrender.com`.
 

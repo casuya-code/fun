@@ -294,7 +294,10 @@ def settle_pending(db, pause: float = 1.0, max_requests: int = 50) -> dict:
         #    said there is no result to show.
         if not postponed and (status != "finished" or hg is None or ag is None) and m.match_url:
             try:
-                p_status, p_hg, p_ag, p_ko = fetch_match_page(m.match_url)
+                p_status, p_hg, p_ag, p_ko = fetch_match_page(
+                    m.match_url, m.home_team, m.away_team, m.match_date)
+                if p_status == "postponed":
+                    postponed = True
                 if p_status == "finished" and p_hg is not None and p_ag is not None:
                     if p_ko is None or abs((p_ko.date() - m.match_date.date()).days) <= 3:
                         hg, ag, status = p_hg, p_ag, "finished"

@@ -33,6 +33,11 @@ services:
         sync: false
       - key: FOOTBALL_API_HOST
         value: v3.football.api-sports.io
+      # Groq powers the AI result extraction (reads pages the app downloads).
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
       # Same-origin requests (https://<service>.onrender.com) are accepted
       # automatically. Only set ALLOWED_ORIGINS in the dashboard if you add a
       # custom domain, e.g. "https://betva.example.com".

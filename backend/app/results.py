@@ -51,10 +51,13 @@ def _parse_kickoff(text: str) -> Optional[datetime]:
         return None
 
 
-def fetch_match_page(url: str) -> Tuple[str, Optional[int], Optional[int], Optional[datetime]]:
+def fetch_match_page(url: str, home_team: Optional[str] = None,
+                     away_team: Optional[str] = None,
+                     match_date=None) -> Tuple[str, Optional[int], Optional[int], Optional[datetime]]:
     """Return (status, home_goals, away_goals, kickoff).
 
-    status is 'finished' only when the page shows a final score.
+    status is 'finished' only when the page shows a final score, 'postponed'
+    when the page says the match will not be played, otherwise 'scheduled'.
     """
     full = url if url.startswith("http") else BASE + url
     resp = requests.get(full, headers=UA, timeout=30)
@@ -134,6 +137,21 @@ def fetch_match_page(url: str) -> Tuple[str, Optional[int], Optional[int], Optio
                         return ("finished", hg, ag, kickoff)
             parent = parent.parent
 
+    # Pattern 7: Groq reads the same page text. It only accepts a score that
+    # the page itself shows next to a full-time marker, so it cannot guess.
+    if home_team and away_team:
+        try:
+            from .ai_results import groq_extract_page
+            res = groq_extract_page(soup.get_text(" ", strip=True), home_team,
+                                    away_team, "groq/footystats", match_date or kickoff,
+                                    require_final_results=True)
+            if res and res.postponed:
+                return ("postponed", None, None, kickoff)
+            if res and res.finished and res.home_score is not None and res.away_score is not None:
+                return ("finished", res.home_score, res.away_score, kickoff)
+        except Exception as e:
+            print("groq page extract error:", e)
+
     return ("scheduled", None, None, kickoff)
 
 
@@ -147,7 +165,8 @@ def refresh_kickoffs(db, matches, pause: float = 0.3):
         ko = None
         if m.match_url:
             try:
-                _, _, _, ko = fetch_match_page(m.match_url)
+                _, _, _, ko = fetch_match_page(m.match_url, m.home_team, m.away_team,
+                                               m.match_date)
             except Exception:
                 ko = None
         if not ko:

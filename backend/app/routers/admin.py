@@ -168,14 +168,15 @@ def settle_predictions(db, pause: float = 2.5, max_requests: int = 12) -> dict:
         # 1) footystats page
         if m and m.match_url:
             try:
-                status, hg, ag, ko = fetch_match_page(m.match_url)
+                status, hg, ag, ko = fetch_match_page(
+                    m.match_url, p.home_team, p.away_team, p.match_date)
             except Exception as e:
                 msg = str(e).lower()
                 if "429" in msg or "timed out" in msg or "connection" in msg or "reset" in msg:
                     limited = True
                 # fall through to AI
-        # 2) AI fallback (scraping)
-        if status != "finished" or hg is None or ag is None:
+        # 2) AI fallback (scraping). A postponed page has no score to find.
+        if status != "postponed" and (status != "finished" or hg is None or ag is None):
             try:
                 ai_res = ai_fetch_score(p.home_team, p.away_team, p.match_date)
                 if ai_res and ai_res.finished and ai_res.home_score is not None and ai_res.away_score is not None:
