@@ -409,6 +409,28 @@ def ingest_engine(db: Session, matches=None):
     """Store/refresh matches in the private admin engine table."""
     if matches is None:
         matches = fetch_matches()
+
+    # Clean up duplicate EngineMatch rows (same home, away, day) keeping the
+    # one with the latest kickoff_at (or the first one if none have kickoff).
+    from sqlalchemy import func
+    dupes = db.query(
+        EngineMatch.home_team, EngineMatch.away_team,
+        func.date(EngineMatch.match_date).label("d")
+    ).group_by(
+        EngineMatch.home_team, EngineMatch.away_team, func.date(EngineMatch.match_date)
+    ).having(func.count() > 1).all()
+    for home, away, d in dupes:
+        rows = db.query(EngineMatch).filter(
+            EngineMatch.home_team == home,
+            EngineMatch.away_team == away,
+            EngineMatch.match_date >= datetime.combine(d, time(0, 0)),
+            EngineMatch.match_date < datetime.combine(d, time(0, 0)) + timedelta(days=1),
+        ).order_by(EngineMatch.kickoff_at.desc().nullslast(), EngineMatch.id).all()
+        # Keep the first (latest kickoff), delete the rest
+        for row in rows[1:]:
+            db.delete(row)
+    db.commit()
+
     stored = 0
     for m in matches:
         match_date = m["date"]
