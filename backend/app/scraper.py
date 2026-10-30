@@ -411,11 +411,16 @@ def ingest_engine(db: Session, matches=None):
         matches = fetch_matches()
     stored = 0
     for m in matches:
-        match_dt = datetime.combine(m["date"], time(12, 0))
+        match_date = m["date"]
+        day_start = datetime.combine(match_date, time(0, 0))
+        day_end = day_start + timedelta(days=1)
+        # Look up by (home, away) within the same day (kickoff may have been
+        # updated to a real time, so exact match_date lookup would miss it)
         row = db.query(EngineMatch).filter(
             EngineMatch.home_team == m["home"],
             EngineMatch.away_team == m["away"],
-            EngineMatch.match_date == match_dt,
+            EngineMatch.match_date >= day_start,
+            EngineMatch.match_date < day_end,
         ).first()
         if row:
             row.odds = m["odds"]
@@ -424,6 +429,7 @@ def ingest_engine(db: Session, matches=None):
             if m.get("link"):
                 row.match_url = m["link"]
         else:
+            match_dt = datetime.combine(match_date, time(12, 0))
             db.add(EngineMatch(
                 home_team=m["home"], away_team=m["away"], match_date=match_dt,
                 odds=m["odds"], over15_pct=m["over15"], avg_goals=m["avg_goals"],
