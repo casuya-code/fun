@@ -38,6 +38,10 @@ services:
         sync: false
       - key: GROQ_MODEL
         value: openai/gpt-oss-120b
+      # Optional: HTTP/HTTPS proxy used to fetch FootyStats when Cloudflare
+      # blocks the Render datacenter IP. Format: http://user:pass@host:port
+      - key: PROXY_URL
+        sync: false
       # Same-origin requests (https://<service>.onrender.com) are accepted
       # automatically. Only set ALLOWED_ORIGINS in the dashboard if you add a
       # custom domain, e.g. "https://betva.example.com".
