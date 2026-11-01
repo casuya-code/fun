@@ -5,10 +5,10 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import func, text
+from sqlalchemy import text
 from apscheduler.schedulers.background import BackgroundScheduler
 from .db import Base, engine, SessionLocal
-from .models import User, Subscription, DailyAccumulator, IndividualMatch, Visit, EngineMatch, PasswordResetToken, AuditLog
+from .models import User, Subscription, DailyAccumulator, IndividualMatch, EngineMatch
 from .auth import hash_password
 from .config import settings
 

@@ -1,4 +1,4 @@
-// Index page - no visitor stats needed for now
+// Index page
 (async()=>{ 
   try{
     const s=await fetch("/api/visitor-stats");

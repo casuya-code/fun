@@ -2,17 +2,14 @@ import re
 import os
 import json
 import requests
-import time
-import warnings
-from datetime import datetime, date, timedelta, time
+from datetime import datetime, timedelta, time
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
-from .models import User, EngineMatch, DailyAccumulator, IndividualMatch
+from .models import User, EngineMatch
 from .config import settings
 
 URL = "https://footystats.org/stats/over15-goals"
 
-import os
 
 def _proxies():
     pu = getattr(settings, "proxy_url", "") or os.getenv("PROXY_URL", "")
@@ -106,7 +103,6 @@ def fetch_matches_footstats_api():
     if not key:
         return []
     try:
-        import requests
         r = requests.get("https://api.football-data-api.com/todays-matches",
                          params={"key": key}, timeout=20)
         if r.status_code != 200:

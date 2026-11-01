@@ -1,5 +1,5 @@
 if(!requireAuth()) throw new Error("auth");
-recordVisit();
+
 
 const PAGE_FILES = { leo:"leo.html", malipo:"malipo.html", mimi:"mimi.html", historia:"historia.html" };
 function switchTab(tab){

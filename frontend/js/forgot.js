@@ -1,4 +1,4 @@
-(async()=>{ await recordVisit(); })();
+(async()=>{ })();
 async function doForgot(){
   try{
     const data = await API.post("/api/auth/forgot", {phone_number: document.getElementById("phone").value});

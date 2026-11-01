@@ -6,7 +6,7 @@ import string
 
 from ..db import get_db
 from ..models import User, PasswordResetToken, Subscription
-from ..schemas import RegisterIn, LoginIn, TokenOut, ForgotIn, ResetIn
+from ..schemas import RegisterIn, LoginIn, ForgotIn, ResetIn
 from ..auth import hash_password, verify_password, create_access_token
 from ..deps import current_user
 from ..config import settings

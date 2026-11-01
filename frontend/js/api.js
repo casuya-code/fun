@@ -25,14 +25,6 @@ const API = {
   del(p){ return this.req(p,{method:"DELETE"}); },
 };
 
-async function recordVisit(){
-  try {
-    const token = localStorage.getItem("token");
-    const headers = token ? {Authorization: "Bearer " + token} : {};
-    await fetch("/api/visits", {method:"POST", headers});
-  } catch(e){}
-}
-
 function currentUser(){ try { return JSON.parse(localStorage.getItem("user")||"null"); } catch(e){return null;} }
 function setUser(u){ if(u) localStorage.setItem("user", JSON.stringify(u)); else localStorage.removeItem("user"); }
 
@@ -41,7 +33,6 @@ function requireAuth(){
   return true;
 }
 
-// Subscription helpers
 async function getSubscriptionStatus(){
   return await API.get("/api/subscriptions/status");
 }

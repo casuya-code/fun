@@ -2,7 +2,7 @@ if(!requireAuth()) throw new Error("auth");
 const sessionUser = currentUser();
 if(!sessionUser || sessionUser.role !== "admin"){ location.href="/leo.html"; throw new Error("not-admin"); }
 
-recordVisit();
+
 
 function escapeHtml(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 

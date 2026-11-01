@@ -1,5 +1,5 @@
 if(!requireAuth()) throw new Error("auth");
-recordVisit();
+
 
 function parseDT(d){
   if(!d) return new Date(NaN);

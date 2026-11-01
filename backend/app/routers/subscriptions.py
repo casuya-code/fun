@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from ..db import get_db
 from ..models import User, Subscription
 from ..deps import current_user, admin_user
-from ..schemas import SubscriptionStatusOut, ActivateSubscriptionIn
+from ..schemas import ActivateSubscriptionIn
 
 router = APIRouter()
 

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from ..db import get_db
 from ..models import User, Subscription, DailyAccumulator, IndividualMatch
 from ..deps import admin_user
-from ..schemas import MatchUpdate, AccumulatorUpdate
+from ..schemas import AccumulatorUpdate
 
 router = APIRouter()
 

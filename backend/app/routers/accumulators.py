@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, date, timedelta
 from ..db import get_db
-from ..models import DailyAccumulator, IndividualMatch, User
+from ..models import DailyAccumulator, IndividualMatch
 from ..deps import current_user, admin_user
-from ..schemas import AccumulatorCreate, AccumulatorUpdate, AccumulatorOut, MatchCreate, MatchUpdate, MatchOut
+from ..schemas import AccumulatorCreate, AccumulatorUpdate
 
 router = APIRouter()
 

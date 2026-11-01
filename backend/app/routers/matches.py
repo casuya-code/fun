@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import IndividualMatch, DailyAccumulator
 from ..deps import current_user, admin_user
-from ..schemas import MatchCreate, MatchUpdate, MatchOut
+from ..schemas import MatchCreate, MatchUpdate
 
 router = APIRouter()
 
