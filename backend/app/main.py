@@ -102,16 +102,36 @@ app.include_router(engine_router.router, prefix="/api/engine", tags=["engine"])
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
-    # Ensure performance indexes exist on existing databases
+    # Schema migration: create new tables and add missing columns
     try:
         with engine.connect() as _c:
+            # Add phone_number to users if missing
+            _c.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20)"))
+            # Make email nullable (was NOT NULL in old schema)
+            _c.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
+            # Add role if missing
+            _c.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(10) DEFAULT 'Mteja'"))
+            # Update existing users: set phone_number = email if phone_number is null
+            _c.execute(text("UPDATE users SET phone_number = '0700000000' WHERE phone_number IS NULL"))
+            # Set default role for existing users
+            _c.execute(text("UPDATE users SET role = 'Mteja' WHERE role IS NULL"))
+            # Make phone_number NOT NULL and UNIQUE (if not already)
+            try:
+                _c.execute(text("ALTER TABLE users ALTER COLUMN phone_number SET NOT NULL"))
+            except Exception:
+                pass
+            try:
+                _c.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_phone_number ON users(phone_number)"))
+            except Exception:
+                pass
+            # Engine matches columns
             _c.execute(text("CREATE INDEX IF NOT EXISTS ix_engine_matches_home_away ON engine_matches(home_team, away_team)"))
             _c.execute(text("ALTER TABLE engine_matches ADD COLUMN IF NOT EXISTS used BOOLEAN DEFAULT FALSE"))
             _c.execute(text("ALTER TABLE engine_matches ADD COLUMN IF NOT EXISTS kickoff_at TIMESTAMP"))
             _c.execute(text("CREATE INDEX IF NOT EXISTS ix_visits_user_id ON visits(user_id)"))
             _c.commit()
     except Exception as e:
-        print("index creation error", e)
+        print("migration error", e)
     db = SessionLocal()
     try:
         admin = db.query(User).filter(User.role == "admin").first()

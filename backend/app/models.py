@@ -10,7 +10,7 @@ def uid():
 class User(Base):
     __tablename__ = "users"
     id = Column(String, primary_key=True, default=uid)
-    phone_number = Column(String(15), unique=True, nullable=False, index=True)
+    phone_number = Column(String(20), unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
     role = Column(String, nullable=False, default="Mteja")  # Mteja / Admin
     created_at = Column(DateTime, default=datetime.utcnow)
