@@ -13,6 +13,7 @@ services:
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
+    # Force redeploy: SRS implementation v2
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
