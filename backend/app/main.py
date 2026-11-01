@@ -5,17 +5,15 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import func
+from sqlalchemy import func, text
 from apscheduler.schedulers.background import BackgroundScheduler
 from .db import Base, engine, SessionLocal
-from .models import User, Visit
+from .models import User, Subscription, DailyAccumulator, IndividualMatch, Visit, EngineMatch, PasswordResetToken, AuditLog
 from .auth import hash_password
 from .config import settings
-from .scraper import ingest
 
-app = FastAPI(title="BetPicks")
+app = FastAPI(title="Betva Acca App")
 
-import os
 _allowed = os.getenv("ALLOWED_ORIGINS", "http://127.0.0.1:8000,http://localhost:8000")
 ALLOWED_ORIGINS = [o.strip() for o in _allowed.split(",") if o.strip()]
 
@@ -33,13 +31,6 @@ from starlette.responses import JSONResponse as _JSONResponse
 import time as _t
 
 def _origin_allowed(request: _Req, origin: str) -> bool:
-    """Accept configured origins plus the site's own origin.
-
-    The deployed hostname (e.g. https://betva.onrender.com) is not known when
-    the app is built, and same-origin POSTs are safe by definition. Comparing
-    the Origin header with Host / X-Forwarded-Host keeps forms working without
-    having to hardcode the Render URL in ALLOWED_ORIGINS.
-    """
     if origin in ALLOWED_ORIGINS:
         return True
     try:
@@ -55,17 +46,14 @@ def _origin_allowed(request: _Req, origin: str) -> bool:
     forwarded = (request.headers.get("x-forwarded-host") or "").split(",")[0].strip().lower()
     return bool(forwarded) and origin_host == forwarded
 
-
 _rate: dict = {}
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         ip = request.client.host if request.client else "unknown"
-        # Origin check for state-changing API requests
         if request.method in ("POST", "PUT", "DELETE", "PATCH"):
             origin = request.headers.get("origin")
             if origin and not _origin_allowed(request, origin):
                 return _JSONResponse({"detail": "Origin not allowed"}, status_code=403)
-        # Only API traffic is rate-limited; static files are served normally.
         if not request.url.path.startswith("/api/"):
             return await call_next(request)
         now = _t.time()
@@ -74,12 +62,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         limit = 60 if is_auth else 300
         key = (ip, is_auth)
         bucket = _rate.setdefault(key, [])
-        # drop old
         bucket[:] = [t for t in bucket if now - t < window]
         if len(bucket) >= limit:
             return _JSONResponse({"detail": "Too many requests"}, status_code=429)
         bucket.append(now)
-        # keep the in-memory table from growing forever
         if len(_rate) > 5000:
             for k in [k for k, v in _rate.items() if not v]:
                 _rate.pop(k, None)
@@ -94,7 +80,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         resp.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         resp.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
-        # Always serve fresh HTML/JS/CSS so UI fixes are picked up immediately.
         path = request.url.path.lower()
         if path == "/" or path.endswith(".html"):
             resp.headers["Cache-Control"] = "no-store, max-age=0"
@@ -106,45 +91,34 @@ app.add_middleware(RateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 # Routers
-from .routers import auth, admin, predictions, picks, experts, follows, stats, visits, adm
+from .routers import auth, admin, accumulators, matches, subscriptions, engine as engine_router
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
-app.include_router(predictions.router, prefix="/api/predictions", tags=["predictions"])
-app.include_router(picks.router, prefix="/api/picks", tags=["picks"])
-app.include_router(experts.router, prefix="/api/experts", tags=["experts"])
-app.include_router(follows.router, prefix="/api/follows", tags=["follows"])
-app.include_router(stats.router, prefix="/api", tags=["stats"])
-app.include_router(visits.router, prefix="/api", tags=["visits"])
-app.include_router(adm.router, prefix="/api/adm", tags=["adm"])
+app.include_router(accumulators.router, prefix="/api/accumulators", tags=["accumulators"])
+app.include_router(matches.router, prefix="/api/matches", tags=["matches"])
+app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["subscriptions"])
+app.include_router(engine_router.router, prefix="/api/engine", tags=["engine"])
 
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
     # Ensure performance indexes exist on existing databases
     try:
-        from sqlalchemy import text
         with engine.connect() as _c:
-            _c.execute(text("CREATE INDEX IF NOT EXISTS ix_engine_slip_legs_match_id ON engine_slip_legs(match_id)"))
             _c.execute(text("CREATE INDEX IF NOT EXISTS ix_engine_matches_home_away ON engine_matches(home_team, away_team)"))
-            _c.execute(text("CREATE INDEX IF NOT EXISTS ix_predictions_home_away ON predictions(home_team, away_team)"))
-            _c.execute(text("CREATE INDEX IF NOT EXISTS ix_engine_matches_kickoff ON engine_matches(kickoff_at)"))
             _c.execute(text("ALTER TABLE engine_matches ADD COLUMN IF NOT EXISTS used BOOLEAN DEFAULT FALSE"))
             _c.execute(text("ALTER TABLE engine_matches ADD COLUMN IF NOT EXISTS kickoff_at TIMESTAMP"))
-            _c.execute(text("ALTER TABLE visits ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
-            _c.execute(text("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS home_goals INTEGER"))
-            _c.execute(text("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS away_goals INTEGER"))
             _c.execute(text("CREATE INDEX IF NOT EXISTS ix_visits_user_id ON visits(user_id)"))
             _c.commit()
     except Exception as e:
         print("index creation error", e)
     db = SessionLocal()
     try:
-        admin = db.query(User).filter(User.email == settings.admin_email).first()
+        admin = db.query(User).filter(User.role == "admin").first()
         if not admin and settings.admin_password:
             admin = User(
-                email=settings.admin_email,
+                phone_number=settings.admin_phone,
                 password_hash=hash_password(settings.admin_password),
-                nickname=settings.admin_nickname,
                 role="admin",
             )
             db.add(admin)
@@ -155,6 +129,7 @@ def startup():
         db.close()
 
     def run_ingest():
+        from .scraper import ingest
         s = SessionLocal()
         try:
             ingest(s)
@@ -164,24 +139,68 @@ def startup():
             s.close()
 
     def run_settle():
-        """Auto-settle ADM slips and fill in real kickoff times."""
-        from .routers.adm import settle_pending
-        from .routers.admin import settle_predictions
         from .models import EngineMatch
         from .results import refresh_kickoffs
         s = SessionLocal()
         try:
             refresh_kickoffs(s, s.query(EngineMatch).filter(EngineMatch.kickoff_at.is_(None)).all())
-            settle_pending(s)
-            settle_predictions(s)
         except Exception as e:
             print("settle error", e)
+        finally:
+            s.close()
+
+    def run_expire_subscriptions():
+        """Expire subscriptions every Sunday at 18:59:59."""
+        from .models import Subscription
+        s = SessionLocal()
+        try:
+            now = datetime.utcnow()
+            expired = s.query(Subscription).filter(
+                Subscription.status == "Hai",
+                Subscription.expires_at <= now
+            ).all()
+            for sub in expired:
+                sub.status = "Imeisha"
+            s.commit()
+            print(f"Expired {len(expired)} subscriptions")
+        except Exception as e:
+            print("expire error", e)
+        finally:
+            s.close()
+
+    def run_sms_warning():
+        """Send SMS warning every Saturday at 18:59."""
+        from .models import Subscription, User
+        s = SessionLocal()
+        try:
+            now = datetime.utcnow()
+            # Find subscriptions expiring within 24 hours that haven't been warned
+            warning_time = now + timedelta(hours=24)
+            subs = s.query(Subscription).filter(
+                Subscription.status == "Hai",
+                Subscription.expires_at <= warning_time,
+                Subscription.warning_sms_sent == False
+            ).all()
+            for sub in subs:
+                user = s.query(User).filter(User.id == sub.user_id).first()
+                if user:
+                    # TODO: Send SMS via WEB SMS PUSH API
+                    print(f"SMS warning to {user.phone_number}: subscription expires {sub.expires_at}")
+                    sub.warning_sms_sent = True
+            s.commit()
+            print(f"Sent {len(subs)} SMS warnings")
+        except Exception as e:
+            print("sms warning error", e)
         finally:
             s.close()
 
     scheduler = BackgroundScheduler()
     scheduler.add_job(run_ingest, "interval", hours=6, id="footystats")
     scheduler.add_job(run_settle, "interval", minutes=30, id="settle")
+    # Weekly expiration: Sunday 18:59:59
+    scheduler.add_job(run_expire_subscriptions, "cron", day_of_week="sun", hour=18, minute=59, second=59, id="expire")
+    # Saturday warning: Saturday 18:59:00
+    scheduler.add_job(run_sms_warning, "cron", day_of_week="sat", hour=18, minute=59, second=0, id="sms_warning")
     scheduler.start()
     # initial run in background
     threading.Thread(target=run_ingest, daemon=True).start()
@@ -193,7 +212,6 @@ def favicon():
 
 @app.get("/health")
 def health():
-    """Liveness probe: 200 when the API and database are reachable."""
     from sqlalchemy import text as _text
     try:
         with engine.connect() as c:

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Numeric, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Numeric, ForeignKey, Text, UniqueConstraint, Enum
 from sqlalchemy.orm import relationship
 from .db import Base
 
@@ -10,112 +10,70 @@ def uid():
 class User(Base):
     __tablename__ = "users"
     id = Column(String, primary_key=True, default=uid)
-    email = Column(String, unique=True, nullable=False, index=True)
+    phone_number = Column(String(15), unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
-    nickname = Column(String, unique=True, nullable=False, index=True)
-    role = Column(String, nullable=False, default="user")  # admin/user
-    profile_emoji = Column(String, nullable=True, default="⚽")  # emoji for profile display
-    profile_color = Column(String, nullable=True, default="#1a73e8")  # accent color for profile display
+    role = Column(String, nullable=False, default="Mteja")  # Mteja / Admin
     created_at = Column(DateTime, default=datetime.utcnow)
-    picks = relationship("UserPick", back_populates="user", cascade="all, delete-orphan")
-    following = relationship("Follow", foreign_keys="Follow.follower_id", back_populates="follower", cascade="all, delete-orphan")
-    followers = relationship("Follow", foreign_keys="Follow.following_id", back_populates="following", cascade="all, delete-orphan")
+    subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
 
-class Prediction(Base):
-    __tablename__ = "predictions"
-    id = Column(String, primary_key=True, default=uid)
-    home_team = Column(String, nullable=False)
-    away_team = Column(String, nullable=False)
-    match_date = Column(DateTime, nullable=False, index=True)
-    odds = Column(Numeric(10, 3), nullable=False)
-    status = Column(String, nullable=False, default="scheduled")  # scheduled/live/finished
-    outcome = Column(String, nullable=True)  # win/lose/void
-    home_goals = Column(Integer, nullable=True)  # final score, only when verified
-    away_goals = Column(Integer, nullable=True)
-    allowed = Column(Boolean, nullable=False, default=False)
-    allowed_at = Column(DateTime, nullable=True)
-    created_by = Column(String, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class UserPick(Base):
-    __tablename__ = "user_picks"
+class Subscription(Base):
+    __tablename__ = "subscriptions"
     id = Column(String, primary_key=True, default=uid)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
-    combined_odds = Column(Numeric(10, 3), nullable=False)
-    user = relationship("User", back_populates="picks")
-    legs = relationship("UserPickLeg", back_populates="pick", cascade="all, delete-orphan")
+    status = Column(String, nullable=False, default="Imeisha")  # Hai / Imeisha
+    expires_at = Column(DateTime, nullable=False)
+    warning_sms_sent = Column(Boolean, default=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    user = relationship("User", back_populates="subscriptions")
 
-class UserPickLeg(Base):
-    __tablename__ = "user_pick_legs"
+class DailyAccumulator(Base):
+    __tablename__ = "daily_accumulators"
     id = Column(String, primary_key=True, default=uid)
-    pick_id = Column(String, ForeignKey("user_picks.id"), nullable=False, index=True)
-    prediction_id = Column(String, ForeignKey("predictions.id"), nullable=False)
-    odds = Column(Numeric(10, 3), nullable=False)
-    pick = relationship("UserPick", back_populates="legs")
-    prediction = relationship("Prediction")
-
-class Follow(Base):
-    __tablename__ = "follows"
-    id = Column(String, primary_key=True, default=uid)
-    follower_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
-    following_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    accumulator_date = Column(Date, nullable=False, unique=True, index=True)
+    total_odds = Column(Numeric(5, 2), nullable=False)
+    stake_amount = Column(Numeric(10, 2), default=5000.00)
+    status = Column(String, nullable=False, default="Pending")  # Pending / Won / Lost
+    is_visible = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    follower = relationship("User", foreign_keys=[follower_id], back_populates="following")
-    following = relationship("User", foreign_keys=[following_id], back_populates="followers")
-    __table_args__ = (UniqueConstraint("follower_id", "following_id", name="uq_follow"),)
+    matches = relationship("IndividualMatch", back_populates="accumulator", cascade="all, delete-orphan")
+
+class IndividualMatch(Base):
+    __tablename__ = "individual_matches"
+    id = Column(String, primary_key=True, default=uid)
+    accumulator_id = Column(String, ForeignKey("daily_accumulators.id"), nullable=False, index=True)
+    home_team = Column(String(100), nullable=False)
+    away_team = Column(String(100), nullable=False)
+    prediction = Column(String(50), nullable=False)
+    match_odds = Column(Numeric(4, 2), nullable=False)
+    analysis_text = Column(Text, nullable=False)
+    status = Column(String, nullable=False, default="Pending")  # Pending / Won / Lost
+    accumulator = relationship("DailyAccumulator", back_populates="matches")
 
 class Visit(Base):
     __tablename__ = "visits"
     id = Column(String, primary_key=True, default=uid)
     ip = Column(String, nullable=False, index=True)
-    user_id = Column(String, nullable=True, index=True)  # set only for logged-in visits
+    user_id = Column(String, nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class EngineMatch(Base):
-    """Private admin-only data source for the accumulator engine."""
+    """Private admin-only data source for the accumulator engine (FootyStats)."""
     __tablename__ = "engine_matches"
     id = Column(String, primary_key=True, default=uid)
     home_team = Column(String, nullable=False)
     away_team = Column(String, nullable=False)
     match_date = Column(DateTime, nullable=False, index=True)
     odds = Column(Numeric(10, 3), nullable=False)
-    over15_pct = Column(Numeric(6, 2), nullable=True)   # % of last matches with 2+ goals
-    avg_goals = Column(Numeric(6, 2), nullable=True)    # historical average goals
+    over15_pct = Column(Numeric(6, 2), nullable=True)
+    avg_goals = Column(Numeric(6, 2), nullable=True)
     league = Column(String, nullable=True)
-    match_url = Column(String, nullable=True)           # page holding the final result
-    kickoff_at = Column(DateTime, nullable=True)        # real kickoff (from the match page)
-    last_checked_at = Column(DateTime, nullable=True)   # throttle result lookups
-    used = Column(Boolean, nullable=False, default=False)  # whether already used in a generated slip
+    match_url = Column(String, nullable=True)
+    kickoff_at = Column(DateTime, nullable=True)
+    last_checked_at = Column(DateTime, nullable=True)
+    used = Column(Boolean, nullable=False, default=False)
     filter_type = Column(String, nullable=False, default="over15")
     created_at = Column(DateTime, default=datetime.utcnow)
     __table_args__ = (UniqueConstraint("home_team", "away_team", "match_date", name="uq_engine_match"),)
-
-class EngineSlip(Base):
-    """An admin-only test accumulator. Never visible to normal users."""
-    __tablename__ = "engine_slips"
-    id = Column(String, primary_key=True, default=uid)
-    created_by = Column(String, ForeignKey("users.id"), nullable=True)
-    combined_odds = Column(Numeric(10, 3), nullable=False)
-    win_prob = Column(Numeric(8, 4), nullable=True)     # estimated probability of the slip
-    kelly_stake = Column(Numeric(8, 4), nullable=True)  # fraction of bankroll (1/4 Kelly)
-    status = Column(String, nullable=False, default="draft")  # draft/settled
-    note = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    legs = relationship("EngineSlipLeg", back_populates="slip", cascade="all, delete-orphan")
-
-class EngineSlipLeg(Base):
-    __tablename__ = "engine_slip_legs"
-    id = Column(String, primary_key=True, default=uid)
-    slip_id = Column(String, ForeignKey("engine_slips.id"), nullable=False, index=True)
-    match_id = Column(String, ForeignKey("engine_matches.id"), nullable=False)
-    odds = Column(Numeric(10, 3), nullable=False)
-    outcome = Column(String, nullable=True)  # win/lose
-    home_goals = Column(Integer, nullable=True)
-    away_goals = Column(Integer, nullable=True)
-    slip = relationship("EngineSlip", back_populates="legs")
-    match = relationship("EngineMatch")
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

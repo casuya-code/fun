@@ -40,3 +40,15 @@ function requireAuth(){
   if(!API.token){ location.href = "/login.html"; return false; }
   return true;
 }
+
+// Subscription helpers
+async function getSubscriptionStatus(){
+  return await API.get("/api/subscriptions/status");
+}
+
+async function isSubscriptionActive(){
+  try {
+    const s = await getSubscriptionStatus();
+    return s.is_active === true;
+  } catch(e){ return false; }
+}

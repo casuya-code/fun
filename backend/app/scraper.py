@@ -7,7 +7,7 @@ import warnings
 from datetime import datetime, date, timedelta, time
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
-from .models import User, Prediction, EngineMatch
+from .models import User, EngineMatch, DailyAccumulator, IndividualMatch
 from .config import settings
 
 URL = "https://footystats.org/stats/over15-goals"
@@ -368,56 +368,6 @@ def ingest(db: Session):
     if not admin:
         return 0
     matches = fetch_matches()
-    ingest_engine(db, matches)
-    count = 0
-    for m in matches:
-        match_date = m["date"]
-        ko = _fetch_kickoff_for_match(m["home"], m["away"], match_date)
-        if ko:
-            match_dt = ko
-        else:
-            match_dt = datetime.combine(match_date, time(12, 0))
-        exists = db.query(Prediction).filter(
-            Prediction.home_team == m["home"],
-            Prediction.away_team == m["away"],
-            Prediction.match_date >= datetime.combine(match_date, time(0, 0)),
-            Prediction.match_date < datetime.combine(match_date + timedelta(days=1), time(0, 0)),
-        ).first()
-        if exists:
-            if ko and exists.match_date != ko:
-                exists.match_date = ko
-                db.commit()
-            continue
-        p = Prediction(
-            home_team=m["home"],
-            away_team=m["away"],
-            match_date=match_dt,
-            odds=m["odds"],
-            status="scheduled",
-            allowed=True,
-            allowed_at=datetime.utcnow(),
-            created_by=admin.id,
-        )
-        db.add(p)
-        count += 1
-    db.commit()
-
-    # Update EngineMatch kickoff_at and match_date
-    for m in matches:
-        match_date = m["date"]
-        ko = _fetch_kickoff_for_match(m["home"], m["away"], match_date)
-        if ko:
-            day_start = datetime.combine(match_date, time(0, 0))
-            day_end = day_start + timedelta(days=1)
-            row = db.query(EngineMatch).filter(
-                EngineMatch.home_team == m["home"],
-                EngineMatch.away_team == m["away"],
-                EngineMatch.match_date >= day_start,
-                EngineMatch.match_date < day_end,
-            ).first()
-            if row:
-                row.kickoff_at = ko
-                row.match_date = ko
-                db.commit()
-
-    return count
+    n = ingest_engine(db, matches)
+    print(f"Ingested {n} new engine matches, {len(matches)} total from FootyStats")
+    return n

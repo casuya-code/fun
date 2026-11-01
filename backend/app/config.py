@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7
     admin_email: str = "admin@example.com"
+    admin_phone: str = "0700000000"
     admin_password: str = ""
     admin_nickname: str = "Admin"
     debug: bool = False

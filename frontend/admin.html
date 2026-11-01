@@ -3,50 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Msimamizi - Betva</title>
+<title>Admin - Betva</title>
 <link rel="stylesheet" href="/css/style.css?v=8">
 </head>
 <body>
 <div class="container page">
-  <div class="card" style="background:linear-gradient(135deg,#1a73e8 0%,#6c5ce7 100%);color:#fff;border:none">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <h1 style="margin:0;color:#fff">⚙️ Paneli ya Msimamizi</h1>
-        <div style="opacity:.9;font-size:13px;margin-top:4px">Sehemu ya siri ya usimamizi</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <a href="/status.html" style="color:#fff;background:rgba(255,255,255,.2);padding:8px 14px;border-radius:8px;text-decoration:none">🟩 Status</a>
-        <a href="/mechi.html" style="color:#fff;background:rgba(255,255,255,.2);padding:8px 14px;border-radius:8px;text-decoration:none">← Rudi</a>
-      </div>
-    </div>
+  <div id="header">
+    <h1>Admin Panel - Betva</h1>
+    <p class="muted" id="hello"></p>
   </div>
-  <div class="card">
-    <h2 style="margin-top:0">🎯 Utabiri</h2>
-    <div class="muted">Mechi huingizwa kiotomatiki na mfumo</div>
-    <div id="msg" class="muted" style="margin-top:6px"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    <button class="btn small" data-tab="watumiaji">Watumiaji</button>
+    <button class="btn small secondary" data-tab="mkeka">Mkeka</button>
+    <button class="btn small secondary" data-tab="adm">ADM</button>
+    <button class="btn small secondary" data-tab="machaguo">Machaguo</button>
+    <button class="btn small secondary" data-tab="mechi">Mechi</button>
   </div>
-  <div class="card">
-    <h2 style="margin-top:0">⚡ Ingiza Kiotomatiki</h2>
-    <div class="muted">Ingiza mechi kutoka Footystats (Over 1.5)</div>
-    <button class="btn secondary" data-action="syncFs" style="margin-top:8px">🔄 Sawazisha Sasa</button>
-    <div id="syncmsg" class="muted" style="margin-top:6px"></div>
-  </div>
-  <div class="card">
-    <h2 style="margin-top:0">📊 Historia ya Matokeo</h2>
-    <div class="muted">Kila mechi kama SINGLE • Kila siku kama ACCA</div>
-    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn secondary" data-action="settleNow">🤖 Sasisha matokeo kiotomatiki (AI)</button>
-      <button class="btn" data-action="loadHistory">📅 Tarehe za Historia</button>
-    </div>
-    <div id="histmsg" class="muted" style="margin-top:6px"></div>
-  </div>
-  <div id="history-dates"></div>
-  <div id="history-detail"></div>
-  <h2 style="margin-top:20px">📋 Orodha ya Utabiri</h2>
-  <div id="list"></div>
+  <div id="admin-content"></div>
 </div>
-<script src="/js/api.js?v=3"></script>
-<script src="/js/admin.js?v=4"></script>
-<!-- removed inline script -->
+<script src="/js/api.js?v=4"></script>
+<script src="/js/admin.js?v=7"></script>
 </body>
 </html>
