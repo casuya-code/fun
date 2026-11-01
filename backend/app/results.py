@@ -183,19 +183,8 @@ def refresh_kickoffs(db, matches, pause: float = 0.3):
         if ko:
             m.kickoff_at = ko
             updated += 1
-            # propagate real kickoff to predictions of the SAME fixture/day only
-            try:
-                from .models import Prediction
-                day_start = datetime.combine(m.match_date.date(), time.min)
-                day_end = day_start + timedelta(days=1)
-                db.query(Prediction).filter(
-                    Prediction.home_team == m.home_team,
-                    Prediction.away_team == m.away_team,
-                    Prediction.match_date >= day_start,
-                    Prediction.match_date < day_end,
-                ).update({"match_date": ko}, synchronize_session=False)
-            except Exception:
-                pass
+            # propagate real kickoff to individual_matches (no-op for now)
+            pass
         _time.sleep(pause)
     db.commit()
     return updated

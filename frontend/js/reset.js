@@ -1,9 +1,8 @@
-(async()=>{ await recordVisit(); try{const s=await API.get("/api/visitor-stats");document.getElementById("footer").textContent=`Ziara: L:${s.today} · Jumla:${s.total}`;}catch(e){} })();
-const token = new URLSearchParams(location.search).get("token");
 async function doReset(){
   try{
-    await API.post("/api/auth/reset", {token, new_password: document.getElementById("pw").value});
-    document.getElementById("msg").textContent = "Nenosiri limesasishwa. Unaweza kuingia.";
+    const data = await API.post("/api/auth/reset", {token: document.getElementById("otp").value, new_password: document.getElementById("password").value});
+    document.getElementById("msg").textContent = data.message;
+    setTimeout(() => location.href = "/login.html", 2000);
   }catch(e){ document.getElementById("msg").textContent = e.message; }
 }
 

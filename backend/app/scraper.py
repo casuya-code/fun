@@ -317,8 +317,6 @@ def ingest_engine(db: Session, matches=None):
             EngineMatch.match_date < datetime.combine(d, time(0, 0)) + timedelta(days=1),
         ).order_by(EngineMatch.kickoff_at.desc().nullslast(), EngineMatch.id).all()
         for row in rows[1:]:
-            from ..models import EngineSlipLeg
-            db.query(EngineSlipLeg).filter(EngineSlipLeg.match_id == row.id).delete()
             db.delete(row)
     db.commit()
 

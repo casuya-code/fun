@@ -1,10 +1,7 @@
-(async()=>{ await recordVisit(); loadStats(); })();
-async function loadStats(){
+// Index page - no visitor stats needed for now
+(async()=>{ 
   try{
-    const s = await API.get("/api/visitor-stats");
-    const todayEl = document.getElementById("v-today");
-    const totalEl = document.getElementById("v-total");
-    if(todayEl) todayEl.textContent = s.today;
-    if(totalEl) totalEl.textContent = s.total;
+    const s=await fetch("/api/visitor-stats");
+    if(s.ok){ const d=await s.json(); const el=document.getElementById("v-total"); if(el) el.textContent=d.total; }
   }catch(e){}
-}
+})();

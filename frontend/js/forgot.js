@@ -1,9 +1,9 @@
-(async()=>{ await recordVisit(); try{const s=await API.get("/api/visitor-stats");document.getElementById("footer").textContent=`Ziara: L:${s.today} · Jumla:${s.total}`;}catch(e){} })();
+(async()=>{ await recordVisit(); })();
 async function doForgot(){
   try{
-    const data = await API.post("/api/auth/forgot", {email: document.getElementById("email").value});
+    const data = await API.post("/api/auth/forgot", {phone_number: document.getElementById("phone").value});
     let m = data.message;
-    if(data.reset_url){ m += " (dev) " + data.reset_url; }
+    if(data.otp_dev){ m += " (dev) OTP: " + data.otp_dev; }
     document.getElementById("msg").textContent = m;
   }catch(e){ document.getElementById("msg").textContent = e.message; }
 }

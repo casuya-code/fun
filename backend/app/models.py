@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Numeric, ForeignKey, Text, UniqueConstraint, Enum
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Numeric, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from .db import Base
 
@@ -12,7 +12,7 @@ class User(Base):
     id = Column(String, primary_key=True, default=uid)
     phone_number = Column(String(20), unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
-    role = Column(String, nullable=False, default="Mteja")  # Mteja / Admin
+    role = Column(String, nullable=False, default="Mteja")
     created_at = Column(DateTime, default=datetime.utcnow)
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
 
@@ -20,7 +20,7 @@ class Subscription(Base):
     __tablename__ = "subscriptions"
     id = Column(String, primary_key=True, default=uid)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
-    status = Column(String, nullable=False, default="Imeisha")  # Hai / Imeisha
+    status = Column(String, nullable=False, default="Imeisha")
     expires_at = Column(DateTime, nullable=False)
     warning_sms_sent = Column(Boolean, default=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -32,7 +32,7 @@ class DailyAccumulator(Base):
     accumulator_date = Column(Date, nullable=False, unique=True, index=True)
     total_odds = Column(Numeric(5, 2), nullable=False)
     stake_amount = Column(Numeric(10, 2), default=5000.00)
-    status = Column(String, nullable=False, default="Pending")  # Pending / Won / Lost
+    status = Column(String, nullable=False, default="Pending")
     is_visible = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     matches = relationship("IndividualMatch", back_populates="accumulator", cascade="all, delete-orphan")
@@ -46,7 +46,7 @@ class IndividualMatch(Base):
     prediction = Column(String(50), nullable=False)
     match_odds = Column(Numeric(4, 2), nullable=False)
     analysis_text = Column(Text, nullable=False)
-    status = Column(String, nullable=False, default="Pending")  # Pending / Won / Lost
+    status = Column(String, nullable=False, default="Pending")
     accumulator = relationship("DailyAccumulator", back_populates="matches")
 
 class Visit(Base):
@@ -57,7 +57,6 @@ class Visit(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class EngineMatch(Base):
-    """Private admin-only data source for the accumulator engine (FootyStats)."""
     __tablename__ = "engine_matches"
     id = Column(String, primary_key=True, default=uid)
     home_team = Column(String, nullable=False)
