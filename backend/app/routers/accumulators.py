@@ -9,8 +9,11 @@ from ..schemas import AccumulatorCreate, AccumulatorUpdate
 router = APIRouter()
 
 def _serialize_acc(a):
+    matches_list = getattr(a, "_cached_matches", None)
+    if matches_list is None:
+        matches_list = a.matches
     matches = []
-    for m in a.matches:
+    for m in matches_list:
         matches.append({
             "id": m.id,
             "home_team": m.home_team,
@@ -53,10 +56,19 @@ def history(days: int = 7, db: Session = Depends(get_db), user=Depends(current_u
     if user.role != "admin":
         accs = [a for a in accs if a.is_visible]
     
+    # Batch-load matches for all accumulators to avoid N+1
+    acc_ids = [a.id for a in accs]
+    matches_map = {}
+    if acc_ids:
+        all_matches = db.query(IndividualMatch).filter(IndividualMatch.accumulator_id.in_(acc_ids)).all()
+        for m in all_matches:
+            matches_map.setdefault(m.accumulator_id, []).append(m)
+
     result = []
     for a in accs:
+        # Temporarily attach matches for serialization
+        a._cached_matches = matches_map.get(a.id, [])
         s = _serialize_acc(a)
-        # For history, include status summary
         s["result_status"] = a.status
         result.append(s)
     
