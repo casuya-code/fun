@@ -8,7 +8,9 @@ from ..schemas import AccumulatorCreate, AccumulatorUpdate
 from ..models import Subscription
 
 def _check_subscription(db, user):
-    """Check if user has active subscription. Admin must also pay weekly."""
+    """Check if user has active subscription. Admins bypass all restrictions."""
+    if user.role == "admin":
+        return True
     sub = db.query(Subscription).filter(Subscription.user_id == user.id).first()
     if not sub or sub.status != "Hai":
         return False
