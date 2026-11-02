@@ -36,7 +36,7 @@ async function loadMalipo(){
       <div class="card" style="padding:12px;margin-top:12px">
         <h3>Jinsi ya Kulipa</h3>
         <p>1. Fungua M-Pesa kwenye simu yako</p>
-        <p>2. Tuma TZS 1,000 kwa namba: <b>07XXXXXXXX</b></p>
+        <p>2. Tuma TZS 1,000 kwa namba: <b>0753339055</b></p>
         <p>3. Tuma ujumbe (SMS) ukiweka namba yako ya simu iliyosajiliwa</p>
         <p>4. Subiri admin kuthibitisha malipo (kwa kawaida ndani ya saa 24)</p>
         <p class="muted" style="margin-top:8px">Baada ya kuthibitishwa, akaunti yako itaamilishwa hadi Jumapili 18:59.</p>

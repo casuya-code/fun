@@ -143,6 +143,16 @@ def startup():
             )
             db.add(admin)
             db.commit()
+            db.refresh(admin)
+            # Admin subscription active (admin pays weekly)
+            admin_sub = Subscription(
+                user_id=admin.id,
+                status="Hai",
+                expires_at=datetime.utcnow() + timedelta(days=7),
+                warning_sms_sent=False,
+            )
+            db.add(admin_sub)
+            db.commit()
         elif not admin:
             print("ADMIN_PASSWORD is not set; no admin account was created.")
     finally:
