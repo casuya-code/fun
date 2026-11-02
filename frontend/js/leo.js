@@ -34,7 +34,7 @@ function initPage(){
   const u = currentUser();
   const name = u ? (u.phone_number || "") : "";
   const helloEl = document.getElementById("hello");
-  if(helloEl) helloEl.textContent = `Habari! Leo tumekuletea mkeka wa machaguo 4.`;
+  if(helloEl) helloEl.textContent = `Habari! Leo tumekuletea mkeka wa machaguo 4+ odds.`;
 }
 initPage();
 
