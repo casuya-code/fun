@@ -1,5 +1,5 @@
 if(!requireAuth()) throw new Error("auth");
-
+recordVisit();
 
 function parseDT(d){
   if(!d) return new Date(NaN);
@@ -40,18 +40,31 @@ function initPage(){
 initPage();
 
 async function loadLeo(){
-  try {
-    const acc = await API.get("/api/accumulators/today");
-    const stakeEl = document.getElementById("leo-stake");
-    const statusEl = document.getElementById("leo-status");
-    const matchesEl = document.getElementById("leo-matches");
-    const totalEl = document.getElementById("leo-total");
+  const matchesEl = document.getElementById("leo-matches");
+  const stakeEl = document.getElementById("leo-stake");
+  const statusEl = document.getElementById("leo-status");
+  const totalEl = document.getElementById("leo-total");
 
-    if(!acc){
-      matchesEl.innerHTML = "<div class='muted'>Hakuna mkeka leo. Subiri admin kuunda.</div>";
+  // Check subscription status
+  try {
+    const sub = await API.get("/api/subscriptions/status");
+    if(!sub.is_active && sessionUser && sessionUser.role !== "admin"){
+      matchesEl.innerHTML = "<div class='card' style='padding:12px'><div style='color:red;font-weight:bold'>Usajili wako umeisha</div><p class='muted'>Lipa TZS 1,000 kwa wiki kupata machaguo ya kila siku.</p><a class='btn' href='/malipo.html'>Lipa Sasa</a></div>";
       if(stakeEl) stakeEl.textContent = "";
       if(statusEl) statusEl.textContent = "";
       if(totalEl) totalEl.textContent = "";
+      return;
+    }
+  } catch(e){}
+
+  try {
+    const acc = await API.get("/api/accumulators/today");
+    if(stakeEl) stakeEl.textContent = "";
+    if(statusEl) statusEl.textContent = "";
+    if(totalEl) totalEl.textContent = "";
+
+    if(!acc){
+      matchesEl.innerHTML = "<div class='muted'>Hakuna mkeka leo. Subiri admin kuunda.</div>";
       return;
     }
 
@@ -87,7 +100,7 @@ async function loadLeo(){
 
     if(totalEl) totalEl.textContent = `Jumla ya Odds: ${acc.total_odds}`;
   } catch(e){
-    document.getElementById("leo-matches").innerHTML = "<div class='muted'>Hitilafu: " + escapeHtml(e.message) + "</div>";
+    matchesEl.innerHTML = "<div class='muted'>Hitilafu: " + escapeHtml(e.message) + "</div>";
   }
 }
 

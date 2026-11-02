@@ -179,7 +179,7 @@ CREATE TABLE password_reset_tokens (
 | Tab | Screen | Description |
 |---|---|---|
 | **Leo** | Today's predictions | Shows today's 4-match accumulator with odds, analysis, status |
-| **Malipo** | Payment screen | TZS 4,500/week, payment instructions, activation status |
+| **Malipo** | Payment screen | TZS 1,000/week, payment instructions, activation status |
 | **Mimi** | Profile | User info, subscription status, expiry date |
 | **Historia** | Performance history | Siku 7 (current week) + Siku 90 (archive) + [See] modal |
 
@@ -205,7 +205,7 @@ CREATE TABLE password_reset_tokens (
 - is_visible: Admin can hide/show
 
 ### 5.2 Subscription Logic
-- Price: TZS 4,500/week
+- Price: TZS 1,000/week
 - Activation: Admin manually activates after payment verification
 - Expiration: Sunday 18:59:59 (regardless of activation day)
 - Warning SMS: Saturday 18:59:00
@@ -256,7 +256,7 @@ Namba hii inaisha baada ya dakika 10.
 ### 7.2 Saturday Warning SMS
 ```
 Betva: Kumbuka! Usajili wako unakwisha kesho Jumapili saa 6:59 jioni. 
-Lipa TZS 4,500 kwa wiki kupitia namba ya simu yako. 
+Lipa TZS 1,000 kwa wiki kupitia namba ya simu yako. 
 Malipo: {payment_number}. 
 Asante kwa kuunga mkono Betva!
 ```
@@ -264,7 +264,7 @@ Asante kwa kuunga mkono Betva!
 ### 7.3 Welcome SMS (Optional)
 ```
 Betva: Karibu! Akaunti yako imeundwa. 
-Jisajili kwa TZS 4,500/wiki kupata machaguo ya kila siku. 
+Jisajili kwa TZS 1,000/wiki kupata machaguo ya kila siku. 
 Malipo: {payment_number}
 ```
 

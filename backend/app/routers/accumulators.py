@@ -5,6 +5,20 @@ from ..db import get_db
 from ..models import DailyAccumulator, IndividualMatch
 from ..deps import current_user, admin_user
 from ..schemas import AccumulatorCreate, AccumulatorUpdate
+from ..models import Subscription
+
+def _check_subscription(db, user):
+    """Check if user has active subscription. Admins bypass."""
+    if user.role == "admin":
+        return True
+    sub = db.query(Subscription).filter(Subscription.user_id == user.id).first()
+    if not sub or sub.status != "Hai":
+        return False
+    if sub.expires_at <= datetime.utcnow():
+        sub.status = "Imeisha"
+        db.commit()
+        return False
+    return True
 
 router = APIRouter()
 
@@ -37,6 +51,8 @@ def _serialize_acc(a):
 @router.get("/today")
 def today_accumulator(db: Session = Depends(get_db), user=Depends(current_user)):
     """Get today's accumulator (Leo screen)."""
+    if not _check_subscription(db, user):
+        raise HTTPException(status_code=403, detail="Usajili wako umeisha. Lipa TZS 1,000 kwa wiki.")
     today = datetime.utcnow().date()
     acc = db.query(DailyAccumulator).filter(DailyAccumulator.accumulator_date == today).first()
     if not acc or not acc.is_visible:
@@ -46,6 +62,8 @@ def today_accumulator(db: Session = Depends(get_db), user=Depends(current_user))
 @router.get("/history")
 def history(days: int = 7, db: Session = Depends(get_db), user=Depends(current_user)):
     """Get accumulator history. days=7 for current week, days=90 for archive."""
+    if not _check_subscription(db, user):
+        raise HTTPException(status_code=403, detail="Usajili wako umeisha. Lipa TZS 1,000 kwa wiki.")
     from datetime import timedelta
     start = datetime.utcnow().date() - timedelta(days=days)
     accs = db.query(DailyAccumulator).filter(
@@ -86,6 +104,8 @@ def history(days: int = 7, db: Session = Depends(get_db), user=Depends(current_u
 
 @router.get("/{acc_id}")
 def get_accumulator(acc_id: str, db: Session = Depends(get_db), user=Depends(current_user)):
+    if not _check_subscription(db, user):
+        raise HTTPException(status_code=403, detail="Usajili wako umeisha. Lipa TZS 1,000 kwa wiki.")
     acc = db.query(DailyAccumulator).filter(DailyAccumulator.id == acc_id).first()
     if not acc:
         raise HTTPException(status_code=404, detail="Accumulator haipatikani")
